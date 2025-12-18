@@ -1,0 +1,91 @@
+{
+  "template_id": "single-agent",
+  "name": "Single Agent",
+  "description": "A single specialist agent for focused tasks",
+  "version": "1.0.0",
+  "definition": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "specialist_1",
+          "type": "AgentNode",
+          "data": {
+            "displayRole": "Specialist",
+            "name": "Task Specialist",
+            "system_prompt": "You are a specialized agent for performing specific tasks. You have access to various tools to help complete your objectives efficiently and accurately.\n\nYour capabilities include:\n- Reading and analyzing information\n- Creating and modifying content\n- Searching for relevant data\n\nAlways think step-by-step and use the appropriate tools for each task. Be thorough, accurate, and helpful in your responses.",
+            "tools": ["Read", "Create", "Search"],
+            "llm_config": {
+              "provider": "ollama",
+              "model": "llama3.1:8b",
+              "temperature": 0.7,
+              "max_tokens": 2000
+            }
+          }
+        }
+      ],
+      "edges": [],
+      "entryPoint": "specialist_1"
+    }
+  },
+  "customization_schema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "Custom name for the specialist agent",
+        "default": "Task Specialist"
+      },
+      "system_prompt": {
+        "type": "string",
+        "description": "Custom system prompt for the agent",
+        "default": null
+      },
+      "tools": {
+        "type": "array",
+        "description": "List of tools available to the agent",
+        "items": {
+          "type": "string"
+        },
+        "default": ["Read", "Create", "Search"]
+      },
+      "llm_config": {
+        "type": "object",
+        "description": "LLM configuration",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": ["ollama", "openai"],
+            "default": "ollama"
+          },
+          "model": {
+            "type": "string",
+            "default": "llama3.1:8b"
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 2,
+            "default": 0.7
+          },
+          "max_tokens": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 8000,
+            "default": 2000
+          }
+        }
+      }
+    }
+  },
+  "metadata": {
+    "author": "Agent Builder Team",
+    "created_at": "2025-10-16",
+    "tags": ["single-agent", "specialist", "basic"],
+    "use_cases": [
+      "Simple task automation",
+      "Content generation",
+      "Data processing",
+      "Information retrieval"
+    ]
+  }
+}

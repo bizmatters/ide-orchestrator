@@ -1,0 +1,163 @@
+{
+  "template_id": "multi-agent",
+  "name": "Multi-Agent System",
+  "description": "Orchestrator with multiple specialist agents working together",
+  "version": "1.0.0",
+  "definition": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "orchestrator",
+          "type": "AgentNode",
+          "data": {
+            "displayRole": "Orchestrator",
+            "name": "Main Coordinator",
+            "system_prompt": "You are the main coordinator responsible for breaking down complex tasks and delegating them to specialist agents.\n\nYour specialist agents are:\n- researcher: Expert in research and information gathering\n- analyzer: Expert in data analysis and insights generation\n\nYour responsibilities:\n1. Analyze the user's request and identify required subtasks\n2. Delegate specific subtasks to the appropriate specialist agents\n3. Synthesize the results from all specialists into a comprehensive final response\n4. Ensure all parts of the request are addressed\n\nAlways start by planning your approach, then delegate tasks systematically. Coordinate the work flow efficiently and provide a well-structured final answer.",
+            "tools": ["researcher", "analyzer"],
+            "llm_config": {
+              "provider": "ollama",
+              "model": "llama3.1:8b",
+              "temperature": 0.7,
+              "max_tokens": 2000
+            }
+          }
+        },
+        {
+          "id": "researcher",
+          "type": "AgentNode",
+          "data": {
+            "displayRole": "Specialist",
+            "name": "Research Specialist",
+            "system_prompt": "You are a specialized research agent focused on information gathering and knowledge discovery.\n\nYour expertise includes:\n- Finding and extracting relevant information from documents\n- Conducting thorough searches for specific topics\n- Reading and comprehending complex content\n- Identifying key facts and data points\n\nApproach each research task methodically:\n1. Understand what information is needed\n2. Use appropriate tools to gather data\n3. Verify information accuracy\n4. Present findings in a clear, organized manner\n\nBe thorough and cite your sources when applicable.",
+            "tools": ["Search", "Read"],
+            "llm_config": {
+              "provider": "ollama",
+              "model": "llama3.1:8b",
+              "temperature": 0.5,
+              "max_tokens": 1500
+            }
+          }
+        },
+        {
+          "id": "analyzer",
+          "type": "AgentNode",
+          "data": {
+            "displayRole": "Specialist",
+            "name": "Analysis Specialist",
+            "system_prompt": "You are a specialized analysis agent focused on processing data and generating insights.\n\nYour expertise includes:\n- Parsing and interpreting complex data structures\n- Identifying patterns and trends\n- Generating summaries and reports\n- Creating structured outputs\n\nApproach each analysis task systematically:\n1. Understand the data and analysis requirements\n2. Apply appropriate analytical methods\n3. Extract meaningful insights\n4. Present results in a clear, actionable format\n\nFocus on accuracy, clarity, and actionable insights.",
+            "tools": ["Parse", "Create"],
+            "llm_config": {
+              "provider": "ollama",
+              "model": "llama3.1:8b",
+              "temperature": 0.5,
+              "max_tokens": 1500
+            }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "source": "orchestrator",
+          "target": "researcher",
+          "type": "delegation"
+        },
+        {
+          "id": "e2",
+          "source": "orchestrator",
+          "target": "analyzer",
+          "type": "delegation"
+        }
+      ],
+      "entryPoint": "orchestrator"
+    }
+  },
+  "customization_schema": {
+    "type": "object",
+    "properties": {
+      "orchestrator": {
+        "type": "object",
+        "description": "Orchestrator agent configuration",
+        "properties": {
+          "name": {
+            "type": "string",
+            "default": "Main Coordinator"
+          },
+          "system_prompt": {
+            "type": "string",
+            "default": null
+          },
+          "llm_config": {
+            "type": "object",
+            "properties": {
+              "provider": {
+                "type": "string",
+                "enum": ["ollama", "openai"],
+                "default": "ollama"
+              },
+              "model": {
+                "type": "string",
+                "default": "llama3.1:8b"
+              },
+              "temperature": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 2,
+                "default": 0.7
+              }
+            }
+          }
+        }
+      },
+      "specialists": {
+        "type": "object",
+        "description": "Specialist agents configuration",
+        "properties": {
+          "researcher": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "default": "Research Specialist"
+              },
+              "tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": ["Search", "Read"]
+              }
+            }
+          },
+          "analyzer": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "default": "Analysis Specialist"
+              },
+              "tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": ["Parse", "Create"]
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "metadata": {
+    "author": "Agent Builder Team",
+    "created_at": "2025-10-16",
+    "tags": ["multi-agent", "orchestrator", "specialist", "collaborative"],
+    "use_cases": [
+      "Complex task breakdown",
+      "Research and analysis workflows",
+      "Content creation with multiple sources",
+      "Data processing pipelines"
+    ]
+  }
+}

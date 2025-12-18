@@ -1,0 +1,81 @@
+# Binaries
+/bin/
+/api
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binaries
+*.test
+
+# Output of the go coverage tool
+*.out
+*.prof
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Go module cache
+go.sum.backup
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Local development files
+.env
+.env.local
+.env.development
+.env.production
+
+# Runtime logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+
+# Local configuration overrides
+config.local.yaml
+config.local.json
+
+# Database files (if running locally)
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker-related
+.dockerignore.local
+
+# Swagger generated files (if auto-generated)
+docs/swagger.json
+docs/swagger.yaml
+
+# Air live reload tool
+.air.toml
+tmp/
+
+# Delve debugger
+__debug_bin
+
+# Local test coverage
+coverage.html
+coverage.txt

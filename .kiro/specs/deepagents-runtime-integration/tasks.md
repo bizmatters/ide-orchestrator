@@ -8,26 +8,26 @@ This implementation plan converts the deepagents-runtime integration design into
 
 ### Phase 1: deepagents-runtime API Foundation
 
-- [ ] 1. Implement deepagents-runtime HTTP and WebSocket API endpoints
+- [x] 1. Implement deepagents-runtime HTTP and WebSocket API endpoints
   - Add FastAPI endpoints for `/deepagents-runtime/invoke`, `/deepagents-runtime/state/{thread_id}`, and WebSocket `/deepagents-runtime/stream/{thread_id}`
   - Implement CloudEvent parsing and job execution workflow
   - Add WebSocket event streaming with proper event format
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
 
-- [ ] 1.1 Add FastAPI HTTP endpoints to deepagents-runtime
+- [x] 1.1 Add FastAPI HTTP endpoints to deepagents-runtime
   - Create `POST /deepagents-runtime/invoke` endpoint that accepts JobExecutionEvent and returns thread_id
   - Create `GET /deepagents-runtime/state/{thread_id}` endpoint that returns final execution state
   - Add request/response models for JobRequest, ExecutionState, and error handling
   - _Requirements: 1.1, 1.2, 1.4_
 
-- [ ] 1.2 Implement WebSocket streaming endpoint
+- [x] 1.2 Implement WebSocket streaming endpoint
   - Create `GET /deepagents-runtime/stream/{thread_id}` WebSocket endpoint
   - Stream LangGraph events in real-time with format `{"event_type": "...", "data": {...}}`
   - Ensure "files" field is included in `on_state_update` events
   - Emit final `end` event when execution completes
   - _Requirements: 1.3, 1.5_
 
-- [ ] 1.3 Add health check endpoints for Kubernetes probes
+- [x] 1.3 Add health check endpoints for Kubernetes probes
   - Implement `/health` endpoint for liveness probe
   - Implement `/ready` endpoint for readiness probe with dependency checks
   - Add OpenTelemetry tracing and Prometheus metrics

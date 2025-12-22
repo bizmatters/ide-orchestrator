@@ -1,0 +1,195 @@
+name: In-Cluster Integration Tests
+
+on:
+  workflow_call:
+    inputs:
+      test-suite:
+        description: 'Test suite to run (unit, integration, all)'
+        required: false
+        default: 'integration'
+        type: string
+      namespace:
+        description: 'Kubernetes namespace for testing'
+        required: false
+        default: 'intelligence-platform'
+        type: string
+      cleanup:
+        description: 'Clean up test resources after completion'
+        required: false
+        default: true
+        type: boolean
+    secrets:
+      KUBE_CONFIG:
+        description: 'Base64 encoded kubeconfig for cluster access'
+        required: true
+      REGISTRY_USERNAME:
+        description: 'Container registry username'
+        required: false
+      REGISTRY_PASSWORD:
+        description: 'Container registry password'
+        required: false
+
+env:
+  NAMESPACE: ${{ inputs.namespace }}
+  TEST_SUITE: ${{ inputs.test-suite }}
+  CLEANUP: ${{ inputs.cleanup }}
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  validate-dependencies:
+    name: Validate Platform Dependencies
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+        chmod 600 ~/.kube/config
+
+    - name: Validate platform dependencies
+      run: |
+        ./scripts/ci/validate-platform-dependencies.sh
+
+    - name: Run pre-deployment diagnostics
+      run: |
+        ./scripts/ci/pre-deploy-diagnostics.sh
+
+  build-test-image:
+    name: Build Test Image
+    runs-on: ubuntu-latest
+    needs: validate-dependencies
+    outputs:
+      image-tag: ${{ steps.build.outputs.image-tag }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to Container Registry
+      if: ${{ secrets.REGISTRY_USERNAME != '' }}
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.REGISTRY_USERNAME }}
+        password: ${{ secrets.REGISTRY_PASSWORD }}
+
+    - name: Build test image
+      id: build
+      run: |
+        ./scripts/ci/build.sh ci ${{ env.IMAGE_TAG }}
+        echo "image-tag=${{ env.IMAGE_TAG }}" >> $GITHUB_OUTPUT
+
+  apply-ci-optimizations:
+    name: Apply CI Optimizations
+    runs-on: ubuntu-latest
+    needs: validate-dependencies
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+        chmod 600 ~/.kube/config
+
+    - name: Apply resource optimizations
+      run: |
+        ./scripts/patches/00-apply-all-patches.sh
+
+  run-integration-tests:
+    name: Run Integration Tests
+    runs-on: ubuntu-latest
+    needs: [build-test-image, apply-ci-optimizations]
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+        chmod 600 ~/.kube/config
+
+    - name: Run in-cluster tests
+      env:
+        IMAGE_TAG: ${{ needs.build-test-image.outputs.image-tag }}
+      run: |
+        ./scripts/ci/in-cluster-test.sh ${{ env.TEST_SUITE }}
+
+    - name: Collect test results
+      if: always()
+      run: |
+        # Export test results and logs
+        kubectl get jobs -n ${{ env.NAMESPACE }} -l component=test -o wide
+        
+        # Get test logs
+        for job in $(kubectl get jobs -n ${{ env.NAMESPACE }} -l component=test -o name); do
+          echo "=== Logs for $job ==="
+          kubectl logs $job -n ${{ env.NAMESPACE }} || true
+        done
+
+    - name: Run post-deployment diagnostics
+      if: always()
+      run: |
+        ./scripts/ci/post-deploy-diagnostics.sh
+
+  cleanup:
+    name: Cleanup Test Resources
+    runs-on: ubuntu-latest
+    needs: [run-integration-tests]
+    if: always() && inputs.cleanup
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+        chmod 600 ~/.kube/config
+
+    - name: Clean up test resources
+      run: |
+        # Clean up test jobs
+        kubectl delete jobs -n ${{ env.NAMESPACE }} -l component=test --ignore-not-found=true
+        
+        # Clean up test pods
+        kubectl delete pods -n ${{ env.NAMESPACE }} -l component=test --ignore-not-found=true
+        
+        echo "✅ Test resources cleaned up"

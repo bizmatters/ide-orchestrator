@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: intelligence-deepagents
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+    name: intelligence-deepagents
+    app.kubernetes.io/managed-by: argocd

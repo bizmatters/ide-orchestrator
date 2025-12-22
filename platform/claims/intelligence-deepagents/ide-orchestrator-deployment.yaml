@@ -1,0 +1,32 @@
+apiVersion: platform.bizmatters.io/v1alpha1
+kind: WebService
+metadata:
+  name: ide-orchestrator
+  namespace: intelligence-deepagents
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  image: ide-orchestrator:ci-test
+  port: 8080
+  size: micro
+  hostname: "api.local.bizmatters.com"
+  pathPrefix: "/api"
+  
+  # Enhanced backend service discovery
+  backendServiceName: "deepagents-runtime-http"
+  backendServicePort: 8000
+  # backendServiceNamespace defaults to same namespace (intelligence-deepagents)
+  sessionAffinity: "ClientIP"
+  
+  # Database configuration
+  databaseName: "ide_orchestrator"
+  
+  # Init container configuration (override default bash with sh)
+  initContainer:
+    command: ["/bin/sh", "-c"]
+    args: ["echo 'IDE Orchestrator init container - no migrations needed'"]
+  
+  # Secrets with standard environment variable names (envFrom)
+  secret1Name: ide-orchestrator-db-conn      # POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
+  secret2Name: ide-orchestrator-jwt-keys     # JWT_SECRET_KEY, JWT_ALGORITHM
+  secret3Name: ide-orchestrator-app-secrets  # Additional application secrets

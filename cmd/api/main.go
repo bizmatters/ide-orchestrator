@@ -73,6 +73,7 @@ func main() {
 
 	// Initialize orchestration layer
 	specEngineClient := orchestration.NewSpecEngineClient(pool)
+	deepAgentsClient := orchestration.NewDeepAgentsRuntimeClient()
 	orchestrationService := orchestration.NewService(pool, specEngineClient)
 
 	// Initialize JWT manager
@@ -89,7 +90,8 @@ func main() {
 
 	// Initialize gateway layer
 	gatewayHandler := gateway.NewHandler(orchestrationService, jwtManager, pool)
-	wsProxy := gateway.NewWebSocketProxy(pool, specEngineURL)
+	// wsProxy := gateway.NewWebSocketProxy(pool, specEngineURL)  // TODO: Use this when needed
+	deepAgentsWSProxy := gateway.NewDeepAgentsWebSocketProxy(pool, deepAgentsClient, jwtManager)
 
 	// Setup Gin router
 	router := gin.Default()
@@ -129,8 +131,13 @@ func main() {
 	protected.POST("/refinements/:proposalId/approve", gatewayHandler.ApproveProposal)
 	protected.POST("/refinements/:proposalId/reject", gatewayHandler.RejectProposal)
 
+	// Proposal routes
+	protected.GET("/proposals/:id", gatewayHandler.GetProposal)
+	protected.POST("/proposals/:id/approve", gatewayHandler.ApproveProposal)
+	protected.POST("/proposals/:id/reject", gatewayHandler.RejectProposal)
+
 	// WebSocket routes (authenticated)
-	protected.GET("/ws/refinements/:thread_id", wsProxy.StreamRefinement)
+	protected.GET("/ws/refinements/:thread_id", deepAgentsWSProxy.StreamRefinement)
 
 	// HTTP server configuration
 	port := os.Getenv("PORT")

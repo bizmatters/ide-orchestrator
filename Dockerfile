@@ -4,6 +4,9 @@ FROM golang:1.24-alpine AS builder
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates tzdata
 
+# Install golang-migrate tool
+RUN go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+
 # Set working directory
 WORKDIR /build
 
@@ -35,9 +38,14 @@ RUN addgroup -g 1000 app && \
 # Set working directory
 WORKDIR /app
 
-# Copy binary from builder
+# Copy binary, migrations, scripts, and migrate tool from builder
 COPY --from=builder /build/ide-orchestrator .
 COPY --from=builder /build/migrations ./migrations
+COPY --from=builder /build/scripts ./scripts
+COPY --from=builder /go/bin/migrate /usr/local/bin/migrate
+
+# Make scripts executable
+RUN chmod +x ./scripts/ci/*.sh
 
 # Set ownership
 RUN chown -R app:app /app

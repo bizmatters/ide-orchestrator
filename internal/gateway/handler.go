@@ -4,6 +4,8 @@ import (
 	"log"
 	"net/http"
 	"time"
+	"fmt"
+	"context"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -159,18 +161,23 @@ func (h *Handler) CreateWorkflow(c *gin.Context) {
 
 // CreateRefinementRequest represents a refinement request
 type CreateRefinementRequest struct {
-	UserPrompt string `json:"user_prompt" binding:"required"`
+	UserPrompt       string  `json:"user_prompt" binding:"required"`
+	ContextFilePath  *string `json:"context_file_path,omitempty"`
+	ContextSelection *string `json:"context_selection,omitempty"`
 }
 
 // CreateRefinementResponse represents a refinement response
 type CreateRefinementResponse struct {
-	ThreadID   string `json:"thread_id"`
-	ProposalID string `json:"proposal_id"`
+	ProposalID    string `json:"proposal_id"`
+	ThreadID      string `json:"thread_id"`
+	Status        string `json:"status"`
+	WebSocketURL  string `json:"websocket_url"`
+	CreatedAt     string `json:"created_at"`
 }
 
 // CreateRefinement godoc
 // @Summary Create refinement
-// @Description Create a new refinement proposal using Builder Agent
+// @Description Create a new refinement proposal using deepagents-runtime
 // @Tags workflows
 // @Accept json
 // @Produce json
@@ -179,6 +186,7 @@ type CreateRefinementResponse struct {
 // @Success 200 {object} CreateRefinementResponse
 // @Failure 400 {object} map[string]string
 // @Failure 404 {object} map[string]string
+// @Failure 503 {object} map[string]string
 // @Security BearerAuth
 // @Router /workflows/{id}/refinements [post]
 func (h *Handler) CreateRefinement(c *gin.Context) {
@@ -207,40 +215,145 @@ func (h *Handler) CreateRefinement(c *gin.Context) {
 		return
 	}
 
+	// Validate user access to workflow
+	if !h.canAccessWorkflow(c.Request.Context(), workflowID, userID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied to workflow"})
+		return
+	}
+
 	// Get or create draft
 	draftID, err := h.orchestrationService.GetOrCreateDraft(c.Request.Context(), workflowID, userID)
 	if err != nil {
+		log.Printf("Failed to create draft for workflow %s: %v", workflowID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create draft"})
 		return
 	}
 
-	// Invoke Spec Engine (async)
-	threadID, err := h.orchestrationService.SpecEngineClient.InvokeAgent(c.Request.Context(), req.UserPrompt)
+	// Create proposal with user prompt and context
+	proposalID, threadID, err := h.orchestrationService.CreateRefinementProposal(
+		c.Request.Context(), 
+		draftID, 
+		userID, 
+		req.UserPrompt,
+		req.ContextFilePath,
+		req.ContextSelection,
+	)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to invoke spec engine"})
+		log.Printf("Failed to create refinement proposal: %v", err)
+		if err.Error() == "deepagents-runtime unavailable" {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "AI service temporarily unavailable"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create refinement proposal"})
+		}
 		return
 	}
 
-	// Create proposal
-	proposalID, err := h.orchestrationService.CreateProposal(c.Request.Context(), draftID, userID, threadID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create proposal"})
-		return
-	}
+	// Build WebSocket URL for streaming
+	websocketURL := fmt.Sprintf("/api/ws/refinements/%s", threadID)
 
 	c.JSON(http.StatusOK, CreateRefinementResponse{
-		ThreadID:   threadID,
-		ProposalID: proposalID.String(),
+		ProposalID:   proposalID.String(),
+		ThreadID:     threadID,
+		Status:       "processing",
+		WebSocketURL: websocketURL,
+		CreatedAt:    time.Now().UTC().Format(time.RFC3339),
 	})
 }
 
 // Placeholder handlers for other endpoints
 func (h *Handler) GetWorkflow(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Not implemented"})
+	workflowIDStr := c.Param("id")
+	workflowID, err := uuid.Parse(workflowIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid workflow ID"})
+		return
+	}
+
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+	userIDStr := userIDVal.(string)
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	// Check if user can access this workflow
+	if !h.canAccessWorkflow(c.Request.Context(), workflowID, userID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied to workflow"})
+		return
+	}
+
+	// Get workflow from orchestration service
+	workflow, err := h.orchestrationService.GetWorkflow(c.Request.Context(), workflowID)
+	if err != nil {
+		if err.Error() == "workflow not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Workflow not found"})
+		} else {
+			log.Printf("Failed to get workflow %s: %v", workflowID, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve workflow"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, WorkflowResponse{
+		ID:          workflow.ID.String(),
+		Name:        workflow.Name,
+		Description: workflow.Description,
+	})
 }
 
 func (h *Handler) GetVersions(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Not implemented"})
+	workflowIDStr := c.Param("id")
+	workflowID, err := uuid.Parse(workflowIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid workflow ID"})
+		return
+	}
+
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+	userIDStr := userIDVal.(string)
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	// Check if user can access this workflow
+	if !h.canAccessWorkflow(c.Request.Context(), workflowID, userID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied to workflow"})
+		return
+	}
+
+	// Get versions from orchestration service
+	versions, err := h.orchestrationService.GetVersions(c.Request.Context(), workflowID)
+	if err != nil {
+		log.Printf("Failed to get versions for workflow %s: %v", workflowID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve versions"})
+		return
+	}
+
+	// Convert to response format
+	versionResponses := make([]map[string]interface{}, len(versions))
+	for i, version := range versions {
+		versionResponses[i] = map[string]interface{}{
+			"id":             version.ID.String(),
+			"version_number": version.VersionNumber,
+			"status":         version.Status,
+			"created_at":     version.CreatedAt.Format(time.RFC3339),
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"versions": versionResponses,
+	})
 }
 
 func (h *Handler) GetVersion(c *gin.Context) {
@@ -260,9 +373,167 @@ func (h *Handler) DeployVersion(c *gin.Context) {
 }
 
 func (h *Handler) ApproveProposal(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Not implemented"})
+	proposalIDStr := c.Param("proposalId")
+	proposalID, err := uuid.Parse(proposalIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid proposal ID"})
+		return
+	}
+
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+	userIDStr := userIDVal.(string)
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	// Verify user can access this proposal
+	if !h.canAccessProposal(c.Request.Context(), proposalID, userID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied to proposal"})
+		return
+	}
+
+	// Approve proposal via orchestration service
+	err = h.orchestrationService.ApproveProposal(c.Request.Context(), proposalID, userID)
+	if err != nil {
+		log.Printf("Failed to approve proposal %s: %v", proposalID, err)
+		if err.Error() == "proposal not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Proposal not found"})
+		} else if err.Error() == "proposal not completed" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Proposal is not ready for approval"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to approve proposal"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"proposal_id": proposalID.String(),
+		"approved_at": time.Now().UTC().Format(time.RFC3339),
+		"message":     "Proposal approved and changes applied to draft",
+	})
 }
 
 func (h *Handler) RejectProposal(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Not implemented"})
+	proposalIDStr := c.Param("proposalId")
+	proposalID, err := uuid.Parse(proposalIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid proposal ID"})
+		return
+	}
+
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+	userIDStr := userIDVal.(string)
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	// Verify user can access this proposal
+	if !h.canAccessProposal(c.Request.Context(), proposalID, userID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied to proposal"})
+		return
+	}
+
+	// Reject proposal via orchestration service
+	err = h.orchestrationService.RejectProposal(c.Request.Context(), proposalID, userID)
+	if err != nil {
+		log.Printf("Failed to reject proposal %s: %v", proposalID, err)
+		if err.Error() == "proposal not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Proposal not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reject proposal"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"proposal_id": proposalID.String(),
+		"message":     "Proposal rejected and discarded",
+	})
+}
+
+// GetProposal godoc
+// @Summary Get proposal details
+// @Description Retrieve proposal details and generated files
+// @Tags proposals
+// @Produce json
+// @Param id path string true "Proposal ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]string
+// @Failure 403 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Security BearerAuth
+// @Router /proposals/{id} [get]
+func (h *Handler) GetProposal(c *gin.Context) {
+	proposalIDStr := c.Param("id")
+	proposalID, err := uuid.Parse(proposalIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid proposal ID"})
+		return
+	}
+
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+	userIDStr := userIDVal.(string)
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	// Verify user can access this proposal
+	if !h.canAccessProposal(c.Request.Context(), proposalID, userID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied to proposal"})
+		return
+	}
+
+	// Get proposal details via orchestration service
+	proposal, err := h.orchestrationService.GetProposal(c.Request.Context(), proposalID)
+	if err != nil {
+		log.Printf("Failed to get proposal %s: %v", proposalID, err)
+		if err.Error() == "proposal not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Proposal not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve proposal"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, proposal)
+}
+
+// canAccessWorkflow checks if user can access the specified workflow
+func (h *Handler) canAccessWorkflow(ctx context.Context, workflowID, userID uuid.UUID) bool {
+	var count int
+	err := h.pool.QueryRow(ctx, `
+		SELECT COUNT(*) FROM workflows 
+		WHERE id = $1 AND created_by_user_id = $2
+	`, workflowID, userID).Scan(&count)
+	
+	return err == nil && count > 0
+}
+
+// canAccessProposal checks if user can access the specified proposal
+func (h *Handler) canAccessProposal(ctx context.Context, proposalID, userID uuid.UUID) bool {
+	var count int
+	err := h.pool.QueryRow(ctx, `
+		SELECT COUNT(*) FROM proposal_access 
+		WHERE proposal_id = $1 AND user_id = $2
+	`, proposalID, userID).Scan(&count)
+	
+	return err == nil && count > 0
 }

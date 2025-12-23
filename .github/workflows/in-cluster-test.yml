@@ -85,6 +85,10 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       
+      - name: Build test image
+        run: |
+          docker build -f Dockerfile.test -t ide-orchestrator:${{ inputs.image-tag }} .
+      
       - name: Create Kind configuration
         run: |
           # Ensure zerotouch-platform exists
@@ -101,19 +105,26 @@ jobs:
           # Kind cluster is already set up by the previous step
           echo "✅ Kind cluster ready"
       
+      - name: Load Docker image into Kind
+        run: |
+          kind load docker-image ide-orchestrator:${{ inputs.image-tag }} --name zerotouch-preview
+      
       - name: Bootstrap platform
         env:
           BOT_GITHUB_USERNAME: ${{ secrets.BOT_GITHUB_USERNAME }}
           BOT_GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
           TENANTS_REPO_NAME: ${{ secrets.TENANTS_REPO_NAME }}
         run: |
-          # Bootstrap platform using shared script
-          ./scripts/ci/bootstrap-platform.sh preview
+          # Bootstrap the platform using the existing zerotouch-platform
+          cd zerotouch-platform
+          chmod +x scripts/bootstrap/01-master-bootstrap.sh
+          ./scripts/bootstrap/01-master-bootstrap.sh --mode preview
       
       - name: Apply preview patches
         run: |
-          # Apply patches using shared script
-          ./scripts/ci/apply-patches.sh --force
+          # Apply preview environment patches for resource optimization
+          chmod +x scripts/patches/00-apply-all-patches.sh
+          ./scripts/patches/00-apply-all-patches.sh --force
       
       - name: Set up Go
         uses: actions/setup-go@v4

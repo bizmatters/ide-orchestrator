@@ -119,9 +119,9 @@ bootstrap_platform() {
 
 # Apply preview patches (simplified for local testing)
 apply_patches() {
-    log_info "Applying patches for local testing..."
-    ./scripts/ci/apply-local-patches.sh $NAMESPACE
-    log_success "Local patches applied"
+    log_info "Applying patches for testing..."
+    ./scripts/patches/00-apply-all-patches.sh --force
+    log_success "Patches applied"
 }
 
 # Run pre-deploy diagnostics (simplified for local testing)

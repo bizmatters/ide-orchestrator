@@ -5,14 +5,31 @@ set -euo pipefail
 # Validates that all required infrastructure is ready before deploying
 
 NAMESPACE="${NAMESPACE:-intelligence-orchestrator}"
-REQUIRED_NAMESPACES=(
-    "intelligence-orchestrator"
-    "intelligence-deepagents"
-    "cnpg-system"
-    "external-secrets"
-)
 
-echo "🔍 Running pre-deployment diagnostics..."
+# Check if running in preview mode (Kind cluster)
+IS_PREVIEW_MODE=false
+if kubectl get nodes -o name 2>/dev/null | grep -q "zerotouch-preview"; then
+    IS_PREVIEW_MODE=true
+fi
+
+if [ "$IS_PREVIEW_MODE" = true ]; then
+    # Preview mode: Only check core platform components
+    REQUIRED_NAMESPACES=(
+        "cnpg-system"
+        "external-secrets"
+    )
+    echo "🔍 Running pre-deployment diagnostics (Preview Mode)..."
+    echo "ℹ️  Application namespaces will be created by deploy script"
+else
+    # Production mode: Check all namespaces (should exist via tenant-infrastructure)
+    REQUIRED_NAMESPACES=(
+        "intelligence-orchestrator"
+        "intelligence-deepagents"
+        "cnpg-system"
+        "external-secrets"
+    )
+    echo "🔍 Running pre-deployment diagnostics (Production Mode)..."
+fi
 
 # Check kubectl connectivity
 echo "🔗 Checking Kubernetes cluster connectivity..."
@@ -28,8 +45,12 @@ for ns in "${REQUIRED_NAMESPACES[@]}"; do
     if kubectl get namespace "${ns}" &>/dev/null; then
         echo "✅ Namespace ${ns} exists"
     else
-        echo "❌ Namespace ${ns} does not exist"
-        exit 1
+        if [ "$IS_PREVIEW_MODE" = true ]; then
+            echo "⚠️  Namespace ${ns} does not exist (will be created by platform/deploy script)"
+        else
+            echo "❌ Namespace ${ns} does not exist"
+            exit 1
+        fi
     fi
 done
 
@@ -96,23 +117,27 @@ else
     echo "ℹ️  PostgreSQL cluster will need to be created during deployment"
 fi
 
-# Check if DeepAgents Runtime is available
-echo "🤖 Checking DeepAgents Runtime availability..."
-if kubectl get deployment deepagents-runtime -n intelligence-deepagents &>/dev/null; then
-    echo "✅ DeepAgents Runtime deployment found"
-    
-    # Check if it's ready
-    ready_replicas=$(kubectl get deployment deepagents-runtime -n intelligence-deepagents -o jsonpath='{.status.readyReplicas}' || echo "0")
-    desired_replicas=$(kubectl get deployment deepagents-runtime -n intelligence-deepagents -o jsonpath='{.spec.replicas}' || echo "1")
-    
-    if [[ "${ready_replicas}" == "${desired_replicas}" ]]; then
-        echo "✅ DeepAgents Runtime is ready (${ready_replicas}/${desired_replicas})"
+# Check if DeepAgents Runtime is available (only in production or if namespace exists)
+if [ "$IS_PREVIEW_MODE" = false ] || kubectl get namespace intelligence-deepagents &>/dev/null; then
+    echo "🤖 Checking DeepAgents Runtime availability..."
+    if kubectl get deployment deepagents-runtime -n intelligence-deepagents &>/dev/null; then
+        echo "✅ DeepAgents Runtime deployment found"
+        
+        # Check if it's ready
+        ready_replicas=$(kubectl get deployment deepagents-runtime -n intelligence-deepagents -o jsonpath='{.status.readyReplicas}' || echo "0")
+        desired_replicas=$(kubectl get deployment deepagents-runtime -n intelligence-deepagents -o jsonpath='{.spec.replicas}' || echo "1")
+        
+        if [[ "${ready_replicas}" == "${desired_replicas}" ]]; then
+            echo "✅ DeepAgents Runtime is ready (${ready_replicas}/${desired_replicas})"
+        else
+            echo "⚠️  DeepAgents Runtime is not fully ready (${ready_replicas}/${desired_replicas})"
+        fi
     else
-        echo "⚠️  DeepAgents Runtime is not fully ready (${ready_replicas}/${desired_replicas})"
+        echo "⚠️  DeepAgents Runtime deployment not found"
+        echo "ℹ️  DeepAgents Runtime may need to be deployed first"
     fi
 else
-    echo "⚠️  DeepAgents Runtime deployment not found"
-    echo "ℹ️  DeepAgents Runtime may need to be deployed first"
+    echo "ℹ️  Skipping DeepAgents Runtime check (preview mode, namespace not created yet)"
 fi
 
 echo "✅ Pre-deployment diagnostics completed successfully!"

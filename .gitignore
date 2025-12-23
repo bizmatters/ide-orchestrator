@@ -1,3 +1,11 @@
+# =============================================================================
+# CI Deploy Script for ide-orchestrator
+# GitOps service deployment automation
+# =============================================================================
+
+docs/
+.kiro
+
 # Binaries
 /bin/
 /api

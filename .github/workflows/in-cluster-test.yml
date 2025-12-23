@@ -161,6 +161,12 @@ jobs:
           chmod +x scripts/patches/00-apply-all-patches.sh
           ./scripts/patches/00-apply-all-patches.sh --force
       
+      - name: Setup dependencies
+        run: |
+          # Setup DeepAgents Runtime dependency
+          chmod +x scripts/ci/setup-dependencies.sh
+          ./scripts/ci/setup-dependencies.sh
+      
       - name: Run pre-deploy diagnostics
         run: |
           # Run pre-deployment diagnostics

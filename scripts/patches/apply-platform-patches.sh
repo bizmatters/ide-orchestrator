@@ -29,35 +29,27 @@ main() {
         exit 1
     fi
     
-    # Disable Kagent for preview mode
-    KAGENT_FILE="zerotouch-platform/bootstrap/argocd/base/01-kagent.yaml"
+    # Make Kagent optional in preview mode
+    WAIT_SCRIPT="zerotouch-platform/scripts/bootstrap/wait/12a-wait-apps-healthy.sh"
     
-    if [[ -f "$KAGENT_FILE" ]]; then
-        log_info "Disabling Kagent for preview mode..."
+    if [[ -f "$WAIT_SCRIPT" ]]; then
+        log_info "Making Kagent optional for preview mode..."
         
         # Check if already patched
-        if grep -q "# IDE Orchestrator preview patch" "$KAGENT_FILE" 2>/dev/null; then
-            log_warn "Kagent already patched, skipping..."
+        if grep -q '"kagent"' "$WAIT_SCRIPT" 2>/dev/null; then
+            log_warn "Kagent already marked as optional, skipping..."
         else
-            # Use awk to insert the disable configuration after "values: |"
-            awk '
-                /values: \|/ {
-                    print
-                    print "        # IDE Orchestrator preview patch - disable Kagent to save CPU"
-                    print "        agents:"
-                    print "          enabled: false"
-                    print "        controller:"
-                    print "          enabled: false"
-                    next
-                }
-                { print }
-            ' "$KAGENT_FILE" > "$KAGENT_FILE.tmp" && mv "$KAGENT_FILE.tmp" "$KAGENT_FILE"
+            # Add kagent to PREVIEW_OPTIONAL_APPS array - find closing parenthesis and add before it
+            sed -i.bak '/PREVIEW_OPTIONAL_APPS=(/,/)/ {
+                /)/ i\
+    "kagent"                    # Resource intensive, can fail in Kind clusters
+            }' "$WAIT_SCRIPT"
             
-            log_success "Kagent disabled for preview mode"
-            log_info "Saves ~500m CPU and ~1Gi memory"
+            log_success "Kagent marked as optional for preview mode"
+            log_info "Bootstrap will succeed even if Kagent fails to start"
         fi
     else
-        log_error "Kagent file not found: $KAGENT_FILE"
+        log_error "Wait script not found: $WAIT_SCRIPT"
         exit 1
     fi
     

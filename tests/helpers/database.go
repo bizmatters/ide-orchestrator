@@ -37,7 +37,7 @@ func GetTestDatabasePool(ctx context.Context) (*pgxpool.Pool, error) {
 func buildDatabaseURL() string {
 	host := os.Getenv("POSTGRES_HOST")
 	if host == "" {
-		host = "ide-orchestrator-db-rw.intelligence-platform.svc"
+		host = "ide-orchestrator-db-rw.intelligence-orchestrator.svc"
 	}
 	
 	port := os.Getenv("POSTGRES_PORT")

@@ -6,7 +6,7 @@ set -euo pipefail
 
 # Parameters
 SECRET_NAME="${1:-}"
-NAMESPACE="${2:-intelligence-platform}"
+NAMESPACE="${2:-intelligence-orchestrator}"
 
 # Default values
 MAX_ATTEMPTS="${MAX_ATTEMPTS:-30}"

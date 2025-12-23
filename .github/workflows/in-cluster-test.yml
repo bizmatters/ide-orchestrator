@@ -41,7 +41,7 @@ on:
         description: 'Kubernetes namespace to use'
         required: false
         type: string
-        default: 'intelligence-deepagents'
+        default: 'intelligence-orchestrator'
     secrets:
       BOT_GITHUB_TOKEN:
         required: false

@@ -2,7 +2,7 @@ apiVersion: platform.bizmatters.io/v1alpha1
 kind: WebService
 metadata:
   name: ide-orchestrator
-  namespace: intelligence-deepagents
+  namespace: intelligence-orchestrator
   annotations:
     argocd.argoproj.io/sync-wave: "3"
 spec:
@@ -15,7 +15,7 @@ spec:
   # Enhanced backend service discovery
   backendServiceName: "deepagents-runtime-http"
   backendServicePort: 8000
-  # backendServiceNamespace defaults to same namespace (intelligence-deepagents)
+  backendServiceNamespace: "intelligence-deepagents"  # Cross-namespace service reference
   sessionAffinity: "ClientIP"
   
   # Database configuration

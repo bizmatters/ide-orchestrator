@@ -10,16 +10,16 @@ spec:
   source:
     repoURL: https://github.com/arun4infra/ide-orchestrator.git
     targetRevision: main
-    path: platform/claims/intelligence-deepagents
+    path: platform/claims/intelligence-orchestrator
     directory:
       recurse: true
   destination:
     server: https://kubernetes.default.svc
-    namespace: intelligence-deepagents
+    namespace: intelligence-orchestrator
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - ServerSideApply=true
-      - CreateNamespace=true
+      # REMOVED: - CreateNamespace=true  <-- DELETED per namespace policy

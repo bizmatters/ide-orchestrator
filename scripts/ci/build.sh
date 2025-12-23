@@ -181,7 +181,7 @@ elif [[ "$MODE" == "production" || "$MODE" == "local" ]]; then
     if [[ "$MODE" == "production" && "${GIT_REF}" == "main" ]]; then
         log_info "Updating deployment manifest for main branch..."
         
-        DEPLOYMENT_FILE="platform/claims/intelligence-platform/ide-orchestrator-deployment.yaml"
+        DEPLOYMENT_FILE="platform/claims/intelligence-orchestrator/ide-orchestrator-deployment.yaml"
         NEW_IMAGE="${REGISTRY}/${SERVICE_NAME}:main-${SHORT_SHA}"
         
         if [ -f "$DEPLOYMENT_FILE" ]; then

@@ -2,7 +2,7 @@ apiVersion: database.bizmatters.io/v1alpha1
 kind: PostgresInstance
 metadata:
   name: ide-orchestrator-db
-  namespace: intelligence-deepagents
+  namespace: intelligence-orchestrator
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 spec:

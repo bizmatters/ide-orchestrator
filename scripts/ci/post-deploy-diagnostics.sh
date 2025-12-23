@@ -4,7 +4,7 @@ set -euo pipefail
 # Service Health Verification After Deployment
 # Validates that the deployed service is healthy and functioning
 
-NAMESPACE="${NAMESPACE:-intelligence-platform}"
+NAMESPACE="${NAMESPACE:-intelligence-orchestrator}"
 DEPLOYMENT_NAME="${DEPLOYMENT_NAME:-ide-orchestrator}"
 SERVICE_NAME="${SERVICE_NAME:-ide-orchestrator}"
 HEALTH_ENDPOINT="${HEALTH_ENDPOINT:-/api/health}"

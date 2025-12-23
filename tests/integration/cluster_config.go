@@ -67,14 +67,14 @@ func getNamespace() string {
 	}
 	
 	// Default namespace
-	return "intelligence-platform"
+	return "intelligence-orchestrator"
 }
 
 // buildDatabaseURL constructs the database URL from environment variables
 func buildDatabaseURL() string {
 	host := os.Getenv("POSTGRES_HOST")
 	if host == "" {
-		host = "ide-orchestrator-db-rw.intelligence-platform.svc"
+		host = "ide-orchestrator-db-rw.intelligence-orchestrator.svc"
 	}
 	
 	port := os.Getenv("POSTGRES_PORT")

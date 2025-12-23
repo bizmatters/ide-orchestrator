@@ -121,7 +121,7 @@ fi
 
 # Check RBAC
 echo "🔍 Checking RBAC permissions..."
-if kubectl auth can-i create pods --as=system:serviceaccount:intelligence-platform:ide-orchestrator &>/dev/null; then
+if kubectl auth can-i create pods --as=system:serviceaccount:intelligence-orchestrator:ide-orchestrator &>/dev/null; then
     echo "✅ RBAC permissions are configured"
 else
     echo "⚠️  RBAC permissions may need configuration"

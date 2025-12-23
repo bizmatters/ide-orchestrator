@@ -10,7 +10,7 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 # Default values
 ENVIRONMENT="${1:-ci}"
 IMAGE_TAG="${2:-latest}"
-NAMESPACE="${NAMESPACE:-intelligence-deepagents}"
+NAMESPACE="${NAMESPACE:-intelligence-orchestrator}"
 WAIT_TIMEOUT="${WAIT_TIMEOUT:-300}"
 
 echo "🚀 Deploying ide-orchestrator to ${ENVIRONMENT} environment..."
@@ -41,9 +41,13 @@ if ! kubectl cluster-info &> /dev/null; then
     exit 1
 fi
 
-# Create namespace if it doesn't exist
-echo "📁 Ensuring namespace exists..."
-kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+# Validate namespace exists (created by tenant-infrastructure)
+echo "📁 Validating namespace exists..."
+if ! kubectl get namespace "${NAMESPACE}" >/dev/null 2>&1; then
+    echo "❌ Namespace '${NAMESPACE}' not found! Ensure tenant-infrastructure has synced."
+    exit 1
+fi
+echo "✅ Namespace '${NAMESPACE}' exists"
 
 # Apply platform claims and manifests
 echo "📋 Applying platform claims..."

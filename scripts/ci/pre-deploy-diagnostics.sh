@@ -4,9 +4,9 @@ set -euo pipefail
 # Infrastructure Readiness Validation Before Deployment
 # Validates that all required infrastructure is ready before deploying
 
-NAMESPACE="${NAMESPACE:-intelligence-platform}"
+NAMESPACE="${NAMESPACE:-intelligence-orchestrator}"
 REQUIRED_NAMESPACES=(
-    "intelligence-platform"
+    "intelligence-orchestrator"
     "intelligence-deepagents"
     "cnpg-system"
     "external-secrets"

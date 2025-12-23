@@ -10,7 +10,7 @@ SLEEP_INTERVAL="${SLEEP_INTERVAL:-2}"
 TIMEOUT="${TIMEOUT:-60}"
 
 # Database connection parameters
-POSTGRES_HOST="${POSTGRES_HOST:-ide-orchestrator-db-rw.intelligence-platform.svc.cluster.local}"
+POSTGRES_HOST="${POSTGRES_HOST:-ide-orchestrator-db-rw.intelligence-orchestrator.svc.cluster.local}"
 POSTGRES_PORT="${POSTGRES_PORT:-5432}"
 POSTGRES_USER="${POSTGRES_USER:-postgres}"
 POSTGRES_DB="${POSTGRES_DB:-ide-orchestrator-db}"

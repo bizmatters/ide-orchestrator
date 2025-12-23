@@ -8,7 +8,7 @@ set -euo pipefail
 MAX_ATTEMPTS="${MAX_ATTEMPTS:-30}"
 SLEEP_INTERVAL="${SLEEP_INTERVAL:-2}"
 TIMEOUT="${TIMEOUT:-60}"
-NAMESPACE="${NAMESPACE:-intelligence-platform}"
+NAMESPACE="${NAMESPACE:-intelligence-orchestrator}"
 
 # Secret names to wait for
 SECRETS=(

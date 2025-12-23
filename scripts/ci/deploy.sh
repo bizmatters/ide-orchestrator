@@ -10,7 +10,7 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 # Default values
 ENVIRONMENT="${1:-ci}"
 IMAGE_TAG="${2:-latest}"
-NAMESPACE="${NAMESPACE:-intelligence-platform}"
+NAMESPACE="${NAMESPACE:-intelligence-deepagents}"
 WAIT_TIMEOUT="${WAIT_TIMEOUT:-300}"
 
 echo "🚀 Deploying ide-orchestrator to ${ENVIRONMENT} environment..."
@@ -45,16 +45,20 @@ fi
 echo "📁 Ensuring namespace exists..."
 kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
 
-# Apply GitOps manifests
-echo "📋 Applying Kubernetes manifests..."
-if [[ -d "k8s/${ENVIRONMENT}" ]]; then
-    # Environment-specific manifests
+# Apply platform claims and manifests
+echo "📋 Applying platform claims..."
+if [[ -d "platform/claims/${NAMESPACE}" ]]; then
+    # Apply platform claims for the namespace
+    kubectl apply -f "platform/claims/${NAMESPACE}/" -n "${NAMESPACE}"
+    echo "✅ Platform claims applied"
+elif [[ -d "k8s/${ENVIRONMENT}" ]]; then
+    # Environment-specific manifests (fallback)
     kubectl apply -f "k8s/${ENVIRONMENT}/" -n "${NAMESPACE}"
 elif [[ -d "k8s/base" ]]; then
-    # Base manifests with kustomization
+    # Base manifests with kustomization (fallback)
     kubectl apply -k "k8s/base" -n "${NAMESPACE}"
 else
-    echo "❌ No Kubernetes manifests found in k8s/${ENVIRONMENT} or k8s/base"
+    echo "❌ No platform claims found in platform/claims/${NAMESPACE} or k8s manifests"
     exit 1
 fi
 

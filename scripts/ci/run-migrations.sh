@@ -1,74 +1,119 @@
 #!/bin/bash
 set -euo pipefail
 
-# Database Migration Execution Script
-# Runs database migrations using golang-migrate
+# ==============================================================================
+# Database Migrations Script
+# ==============================================================================
+# Runs database migrations using Kubernetes Job
+# Used by both local testing and CI workflows
+# ==============================================================================
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+NAMESPACE="${1:-intelligence-deepagents}"
 
-# Default values
-MIGRATIONS_DIR="${MIGRATIONS_DIR:-${PROJECT_ROOT}/migrations}"
-POSTGRES_HOST="${POSTGRES_HOST}"
-POSTGRES_PORT="${POSTGRES_PORT:-5432}"
-POSTGRES_DB="${POSTGRES_DB}"
-POSTGRES_USER="${POSTGRES_USER}"
-POSTGRES_PASSWORD="${POSTGRES_PASSWORD}"
+# Color codes
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+NC='\033[0m'
 
-echo "🗄️  Running database migrations..."
+log_info() { echo -e "${BLUE}[INFO]${NC} $*" >&2; }
+log_success() { echo -e "${GREEN}[SUCCESS]${NC} $*" >&2; }
+log_error() { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 
-# Validate required environment variables
-if [[ -z "${POSTGRES_HOST:-}" ]]; then
-    echo "❌ POSTGRES_HOST environment variable is required"
-    exit 1
-fi
-
-if [[ -z "${POSTGRES_PASSWORD:-}" ]]; then
-    echo "❌ POSTGRES_PASSWORD environment variable is required"
-    exit 1
-fi
-
-# Check if migrations directory exists
-if [[ ! -d "${MIGRATIONS_DIR}" ]]; then
-    echo "⚠️  Migrations directory not found: ${MIGRATIONS_DIR}"
-    echo "ℹ️  Skipping migrations..."
-    exit 0
-fi
-
-# Construct DATABASE_URL
-export DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=disable"
-
-# Check if migrate tool is available
-if ! command -v migrate &> /dev/null; then
-    echo "⚠️  golang-migrate tool not found"
-    echo "ℹ️  Installing migrate tool..."
+main() {
+    log_info "Running database migrations..."
     
-    # Install migrate tool
-    if command -v go &> /dev/null; then
-        go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
-        export PATH=$PATH:$(go env GOPATH)/bin
-    else
-        echo "❌ Go is not installed, cannot install migrate tool"
-        exit 1
-    fi
-fi
+    # Create ConfigMap with migration files
+    kubectl create configmap migration-files -n $NAMESPACE \
+        --from-file=migrations/ \
+        --dry-run=client -o yaml | kubectl apply -f -
+    
+    # Run migrations using a simple job
+    MIGRATION_JOB="migration-job-$(date +%s)"
+    cat <<EOF | kubectl apply -f -
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: $MIGRATION_JOB
+  namespace: $NAMESPACE
+spec:
+  template:
+    spec:
+      containers:
+      - name: migrate
+        image: postgres:15
+        env:
+        - name: POSTGRES_HOST
+          valueFrom:
+            secretKeyRef:
+              name: ide-orchestrator-db-conn
+              key: POSTGRES_HOST
+        - name: POSTGRES_PORT
+          valueFrom:
+            secretKeyRef:
+              name: ide-orchestrator-db-conn
+              key: POSTGRES_PORT
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: ide-orchestrator-db-conn
+              key: POSTGRES_DB
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: ide-orchestrator-db-conn
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: ide-orchestrator-db-conn
+              key: POSTGRES_PASSWORD
+        command: ["/bin/bash"]
+        args:
+        - -c
+        - |
+          echo "Waiting for PostgreSQL to be ready..."
+          until pg_isready -h \$POSTGRES_HOST -p \$POSTGRES_PORT -U \$POSTGRES_USER; do
+            echo "PostgreSQL not ready, waiting..."
+            sleep 2
+          done
+          echo "PostgreSQL is ready, running migrations..."
+          
+          # Run each migration file in order
+          for migration in /migrations/*.up.sql; do
+            if [ -f "\$migration" ]; then
+              echo "Running migration: \$(basename \$migration)"
+              PGPASSWORD=\$POSTGRES_PASSWORD psql -h \$POSTGRES_HOST -p \$POSTGRES_PORT -U \$POSTGRES_USER -d \$POSTGRES_DB -f "\$migration"
+            fi
+          done
+          
+          echo "Migrations completed successfully!"
+        volumeMounts:
+        - name: migrations
+          mountPath: /migrations
+      volumes:
+      - name: migrations
+        configMap:
+          name: migration-files
+      restartPolicy: Never
+  backoffLimit: 0
+EOF
 
-# Wait for database to be ready
-echo "⏳ Waiting for database to be ready..."
-"${SCRIPT_DIR}/../helpers/wait-for-postgres.sh"
+    # Wait for migration job to complete
+    log_info "Waiting for migration job to complete..."
+    kubectl wait --for=condition=complete --timeout=120s job/$MIGRATION_JOB -n $NAMESPACE || {
+        log_error "Migration job failed or timed out"
+        kubectl logs -l job-name=$MIGRATION_JOB -n $NAMESPACE || true
+        return 1
+    }
+    
+    # Show migration logs
+    kubectl logs -l job-name=$MIGRATION_JOB -n $NAMESPACE
+    
+    # Clean up migration job
+    kubectl delete job $MIGRATION_JOB -n $NAMESPACE --ignore-not-found=true
+    
+    log_success "Database migrations completed"
+}
 
-# Run migrations
-echo "📋 Applying database migrations..."
-migrate \
-    -path "${MIGRATIONS_DIR}" \
-    -database "${DATABASE_URL}" \
-    up
-
-# Check migration status
-echo "📊 Migration status:"
-migrate \
-    -path "${MIGRATIONS_DIR}" \
-    -database "${DATABASE_URL}" \
-    version
-
-echo "✅ Database migrations completed successfully!"
+main "$@"

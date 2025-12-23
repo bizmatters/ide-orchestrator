@@ -1,0 +1,55 @@
+# Database migration job - runs before deployment
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ide-orchestrator-migrations
+  namespace: intelligence-deepagents
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  template:
+    metadata:
+      name: ide-orchestrator-migrations
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: migrations
+        image: ide-orchestrator:ci-test
+        command: ["/bin/sh", "-c"]
+        args: 
+          - |
+            echo "Starting database migrations..."
+            
+            # Wait for PostgreSQL to be ready
+            echo "Waiting for PostgreSQL to be ready..."
+            apk add --no-cache postgresql-client
+            until pg_isready -h $POSTGRES_HOST -p $POSTGRES_PORT -U $POSTGRES_USER; do
+              echo "PostgreSQL not ready, waiting..."
+              sleep 2
+            done
+            echo "PostgreSQL is ready!"
+            
+            # Run migrations
+            echo "Running migrations..."
+            for migration in /app/migrations/*.up.sql; do
+              if [ -f "$migration" ]; then
+                echo "Running migration: $(basename $migration)"
+                PGPASSWORD=$POSTGRES_PASSWORD psql -h $POSTGRES_HOST -p $POSTGRES_PORT -U $POSTGRES_USER -d $POSTGRES_DB -f "$migration"
+              fi
+            done
+            
+            echo "Migrations completed successfully!"
+        envFrom:
+        - secretRef:
+            name: ide-orchestrator-db-conn
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+  backoffLimit: 3
+  activeDeadlineSeconds: 600  # 10 minutes timeout

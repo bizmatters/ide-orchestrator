@@ -41,7 +41,7 @@ on:
         description: 'Kubernetes namespace to use'
         required: false
         type: string
-        default: 'intelligence-platform'
+        default: 'intelligence-deepagents'
     secrets:
       BOT_GITHUB_TOKEN:
         required: false
@@ -102,48 +102,23 @@ jobs:
       
       - name: Build test image
         run: |
-          docker build -t ide-orchestrator:${{ inputs.image-tag }} .
+          docker build -f Dockerfile.test -t ide-orchestrator:${{ inputs.image-tag }} .
       
       - name: Create Kind configuration
         run: |
-          # Install kind if not available
-          if ! command -v kind &> /dev/null; then
-            echo "Installing kind..."
-            curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
-            chmod +x ./kind
-            sudo mv ./kind /usr/local/bin/kind
+          # Ensure zerotouch-platform exists
+          if [[ ! -d "zerotouch-platform" ]]; then
+            echo "zerotouch-platform directory not found in workflow"
+            exit 1
           fi
           
-          # Create Kind config that mounts zerotouch-platform subdirectory to /repo
-          mkdir -p /tmp/kind
-          cat > /tmp/kind/config.yaml << EOF
-          kind: Cluster
-          apiVersion: kind.x-k8s.io/v1alpha4
-          name: zerotouch-preview
-          nodes:
-          - role: control-plane
-            extraPortMappings:
-            # PostgreSQL port
-            - containerPort: 30432
-              hostPort: 5432
-              protocol: TCP
-            # DeepAgents Runtime port
-            - containerPort: 30080
-              hostPort: 8080
-              protocol: TCP
-            extraMounts:
-            # Mount zerotouch-platform subdirectory for ArgoCD to sync from
-            - hostPath: $(pwd)/zerotouch-platform
-              containerPath: /repo
-              readOnly: true
-          EOF
+          # Setup Kind cluster using shared script
+          ./scripts/ci/setup-kind-cluster.sh
       
       - name: Set up Kind cluster
         run: |
-          kind create cluster --config /tmp/kind/config.yaml
-          # Set kubectl context and label nodes
-          kubectl config use-context kind-zerotouch-preview
-          kubectl label nodes --all workload.bizmatters.dev/databases=true --overwrite
+          # Kind cluster is already set up by the previous step
+          echo "✅ Kind cluster ready"
       
       - name: Load Docker image into Kind
         run: |
@@ -155,16 +130,13 @@ jobs:
           BOT_GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
           TENANTS_REPO_NAME: ${{ secrets.TENANTS_REPO_NAME }}
         run: |
-          # Bootstrap the platform using the existing zerotouch-platform
-          cd zerotouch-platform
-          chmod +x scripts/bootstrap/01-master-bootstrap.sh
-          ./scripts/bootstrap/01-master-bootstrap.sh --mode preview
+          # Bootstrap platform using shared script
+          ./scripts/ci/bootstrap-platform.sh preview
       
       - name: Apply preview patches
         run: |
-          # Apply preview environment patches for resource optimization
-          chmod +x scripts/patches/00-apply-all-patches.sh
-          ./scripts/patches/00-apply-all-patches.sh --force
+          # Apply patches using shared script
+          ./scripts/ci/apply-patches.sh --force
       
       - name: Run pre-deploy diagnostics
         run: |
@@ -179,6 +151,13 @@ jobs:
         run: |
           # Deploy the service using existing scripts
           ./scripts/ci/deploy.sh
+      
+      - name: Run database migrations
+        env:
+          NAMESPACE: ${{ inputs.namespace }}
+        run: |
+          # Run migrations using shared script
+          ./scripts/ci/run-migrations.sh ${{ inputs.namespace }}
       
       - name: Run post-deploy diagnostics
         env:
@@ -197,11 +176,8 @@ jobs:
           # JWT secret for testing
           JWT_SECRET: "test-secret-key-for-ci-testing"
         run: |
-          # Create and run test job using template
-          export JOB_NAME="${{ inputs.test-name }}-$(date +%s)"
-          
-          # Run in-cluster tests using the existing script
-          ./scripts/ci/in-cluster-test.sh "${{ inputs.test-path }}" "${{ inputs.test-name }}" ${{ inputs.timeout }}
+          # Run tests using shared script
+          ./scripts/ci/run-test-job.sh "${{ inputs.test-path }}" "${{ inputs.test-name }}" "${{ inputs.timeout }}" "${{ inputs.namespace }}" "${{ inputs.image-tag }}"
       
       - name: Comment PR with test results
         if: always() && github.event_name == 'pull_request'
@@ -214,8 +190,6 @@ jobs:
             
             **Infrastructure:** In-Cluster Kubernetes (Kind + ArgoCD)
             **Test Path:** \`${{ inputs.test-path }}\`
-            **Language:** Go
-            **Coverage:** Real PostgreSQL + DeepAgents Runtime
             
             🎉 Tests completed successfully! Check the workflow logs for detailed results.
             

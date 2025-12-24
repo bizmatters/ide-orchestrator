@@ -28,15 +28,21 @@ echo "==========================================================================
 
 cd "${PROJECT_ROOT}"
 
-# Check if zerotouch-platform exists
-if [[ ! -d "zerotouch-platform" ]]; then
-    log_error "zerotouch-platform directory not found!"
-    log_info "Please ensure zerotouch-platform is checked out in the parent directory"
-    exit 1
-fi
-
-# Use the centralized in-cluster-test script
+# The centralized script will handle platform checkout itself
 CENTRALIZED_SCRIPT="zerotouch-platform/scripts/bootstrap/preview/tenants/scripts/in-cluster-test.sh"
+
+# Check if we can access the centralized script (it might be in a different location)
+if [[ ! -f "$CENTRALIZED_SCRIPT" ]]; then
+    # Try alternative locations or download it
+    log_warn "Centralized script not found at expected location"
+    log_info "The script will handle platform checkout automatically"
+    
+    # For now, assume the script is available via curl or we need to clone platform first
+    if [[ ! -d "zerotouch-platform" ]]; then
+        log_info "Cloning zerotouch-platform to access centralized script..."
+        git clone -b refactor/services-shared-scripts https://github.com/arun4infra/zerotouch-platform.git zerotouch-platform
+    fi
+fi
 
 if [[ ! -f "$CENTRALIZED_SCRIPT" ]]; then
     log_error "Centralized in-cluster-test script not found: $CENTRALIZED_SCRIPT"
@@ -54,6 +60,7 @@ chmod +x "$CENTRALIZED_SCRIPT"
     --test-name="auth-db" \
     --timeout=300 \
     --image-tag="ci-test" \
-    --namespace="intelligence-orchestrator"
+    --namespace="intelligence-orchestrator" \
+    --platform-branch="refactor/services-shared-scripts"
 
 log_success "Auth DB tests completed using centralized script!"

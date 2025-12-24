@@ -36,8 +36,9 @@ permissions:
 
 jobs:
   jwt-validation-tests:
-    uses: ./.github/workflows/in-cluster-test.yml
+    uses: arun4infra/zerotouch-platform/.github/workflows/in-cluster-test.yml@refactor/services-shared-scripts
     with:
+      service-name: "ide-orchestrator"
       test-path: "tests/integration/jwt_validation_integration_test.go"
       test-name: "jwt-validation"
       timeout: 300

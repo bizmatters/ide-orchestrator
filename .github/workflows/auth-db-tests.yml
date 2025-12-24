@@ -40,8 +40,9 @@ permissions:
 
 jobs:
   auth-db-tests:
-    uses: ./.github/workflows/in-cluster-test.yml
+    uses: arun4infra/zerotouch-platform/.github/workflows/in-cluster-test.yml@refactor/services-shared-scripts
     with:
+      service-name: "ide-orchestrator"
       test-path: "tests/integration/auth_db_integration_test.go"
       test-name: "auth-db"
       timeout: 300

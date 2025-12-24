@@ -50,8 +50,10 @@ validate_patches() {
     )
     
     local kagent_disabled=0
+    local kagent_found=0
     for file in "${KAGENT_FILES[@]}"; do
         if [[ -f "$file" ]]; then
+            ((kagent_found++))
             if grep -q "replicas: 0" "$file"; then
                 log_success "✓ Kagent disabled in $(basename "$file")"
                 ((kagent_disabled++))
@@ -59,17 +61,29 @@ validate_patches() {
                 log_error "✗ Kagent not disabled in $(basename "$file")"
                 ((validation_failed++))
             fi
+        else
+            log_warn "Kagent file not found: $(basename "$file") (optional)"
         fi
     done
+    
+    # Only fail if kagent files exist but aren't disabled
+    if [[ $kagent_found -gt 0 && $kagent_disabled -ne $kagent_found ]]; then
+        log_error "✗ Some kagent files found but not all disabled"
+        ((validation_failed++))
+    elif [[ $kagent_found -eq 0 ]]; then
+        log_info "No kagent files found (optional components)"
+    fi
     
     # Check KEDA components
     KEDA_DIRS=("zerotouch-platform/platform/02-workloads/keda")
     local keda_disabled=0
+    local keda_found=0
     
     for keda_dir in "${KEDA_DIRS[@]}"; do
         if [[ -d "$keda_dir" ]]; then
             while IFS= read -r -d '' file; do
                 if grep -q "kind: Deployment" "$file" 2>/dev/null; then
+                    ((keda_found++))
                     if grep -q "replicas: 0" "$file"; then
                         log_success "✓ KEDA disabled in $(basename "$file")"
                         ((keda_disabled++))
@@ -79,14 +93,24 @@ validate_patches() {
                     fi
                 fi
             done < <(find "$keda_dir" -name "*.yaml" -type f -print0)
+        else
+            log_warn "KEDA directory not found: $keda_dir (optional)"
         fi
     done
+    
+    # Only fail if KEDA files exist but aren't disabled
+    if [[ $keda_found -gt 0 && $keda_disabled -ne $keda_found ]]; then
+        log_error "✗ Some KEDA files found but not all disabled"
+        ((validation_failed++))
+    elif [[ $keda_found -eq 0 ]]; then
+        log_info "No KEDA deployments found (optional components)"
+    fi
     
     # Summary
     echo ""
     log_info "=== VALIDATION SUMMARY ==="
-    log_info "Kagent components disabled: $kagent_disabled"
-    log_info "KEDA components disabled: $keda_disabled"
+    log_info "Kagent files found: $kagent_found, disabled: $kagent_disabled"
+    log_info "KEDA files found: $keda_found, disabled: $keda_disabled"
     
     if [[ $validation_failed -eq 0 ]]; then
         log_success "✓ All patches validated successfully"

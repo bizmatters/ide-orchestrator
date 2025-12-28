@@ -7,9 +7,9 @@ on:
     branches: [main]
 
 permissions:
-  packages: write
-  pull-requests: write
-  id-token: write
+  id-token: write      # Required for AWS OIDC authentication in ci-test.yml
+  contents: read       # Required for checkout actions
+  pull-requests: write # Required for test reporting
 
 jobs:
   # STAGE 1: Build artifact once

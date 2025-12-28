@@ -37,7 +37,7 @@ fi
 if [ "$IS_PREVIEW_MODE" = true ]; then
     echo -e "${BLUE}🔧 Optimizing PostgreSQL resources for preview mode...${NC}"
     
-    POSTGRES_CLAIM="$REPO_ROOT/platform/claims/intelligence-deepagents/postgres-claim.yaml"
+    POSTGRES_CLAIM="$REPO_ROOT/platform/claims/intelligence-orchestrator/postgres-claim.yaml"
     
     if [ -f "$POSTGRES_CLAIM" ]; then
         # Downsize from medium to micro (for Kind clusters, go directly to micro)

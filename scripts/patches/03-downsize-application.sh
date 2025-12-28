@@ -36,7 +36,7 @@ fi
 if [ "$IS_PREVIEW_MODE" = true ]; then
     echo -e "${BLUE}🔧 Optimizing IDE Orchestrator application resources for preview mode...${NC}"
     
-    IDE_ORCHESTRATOR_DEPLOYMENT="$REPO_ROOT/platform/claims/intelligence-deepagents/ide-orchestrator-deployment.yaml"
+    IDE_ORCHESTRATOR_DEPLOYMENT="$REPO_ROOT/platform/claims/intelligence-orchestrator/ide-orchestrator-deployment.yaml"
     
     if [ -f "$IDE_ORCHESTRATOR_DEPLOYMENT" ]; then
         # Reduce replicas to 1 for preview

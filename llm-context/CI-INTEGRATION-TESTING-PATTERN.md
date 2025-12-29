@@ -45,9 +45,10 @@ scripts/
 │   ├── test-job-template.yaml    # Kubernetes Job template for Go tests
 │   ├── run.sh                    # Go service runtime execution
 │   ├── run-migrations.sh         # Database migration execution
-│   ├── pre-deploy-diagnostics.sh # Infrastructure readiness validation
-│   ├── post-deploy-diagnostics.sh# Service health verification
-│   └── validate-platform-dependencies.sh # Platform dependency checks
+│   ├── validation/
+│   │   ├── pre-deploy-diagnostics.sh # Infrastructure readiness validation
+│   │   ├── post-deploy-diagnostics.sh# Service health verification
+│   │   └── validate-platform-dependencies.sh # Platform dependency checks
 ├── helpers/                      # Service readiness utilities
 │   ├── wait-for-postgres.sh      # PostgreSQL readiness validation
 │   ├── wait-for-<service>.sh   # Spec Engine service readiness validation
@@ -70,9 +71,9 @@ scripts/
 - **`run-migrations.sh`**: Database migration execution using golang-migrate
 
 ### Infrastructure Management Scripts
-- **`pre-deploy-diagnostics.sh`**: Infrastructure readiness validation before deployment
-- **`post-deploy-diagnostics.sh`**: Service health verification after deployment
-- **`validate-platform-dependencies.sh`**: Platform dependency validation
+- **`validation/pre-deploy-diagnostics.sh`**: Infrastructure readiness validation before deployment
+- **`validation/post-deploy-diagnostics.sh`**: Service health verification after deployment
+- **`validation/validate-platform-dependencies.sh`**: Platform dependency validation
 
 ### Resource Optimization Scripts (`scripts/patches/`)
 - **`00-apply-all-patches.sh`**: Applies all CI environment optimizations

@@ -76,8 +76,8 @@ EOF
     
     # Disable kagent by setting replicas to 0
     KAGENT_FILES=(
-        "zerotouch-platform/platform/03-intelligence/compositions/kagents/librarian/qdrant-mcp-deployment.yaml"
-        "zerotouch-platform/platform/03-intelligence/compositions/kagents/librarian/docs-mcp-deployment.yaml"
+        "zerotouch-platform/platform/intelligence/compositions/kagents/librarian/qdrant-mcp-deployment.yaml"
+        "zerotouch-platform/platform/intelligence/compositions/kagents/librarian/docs-mcp-deployment.yaml"
     )
     
     KAGENT_DISABLED=0
@@ -106,7 +106,7 @@ EOF
     
     # Disable KEDA by setting replicas to 0
     KEDA_DIRS=(
-        "zerotouch-platform/platform/02-workloads/keda"
+        "zerotouch-platform/platform/observability/keda"
     )
     
     KEDA_DISABLED=0

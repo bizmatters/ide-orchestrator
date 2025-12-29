@@ -53,15 +53,11 @@ if [ "$IS_PREVIEW_MODE" = true ]; then
             echo -e "  ${YELLOW}⊘${NC} PostgreSQL already at micro size"
         fi
         
-        # Reduce storage for Kind clusters (minimum 2GB for testing)
+        # Reduce storage for Kind clusters (minimum 10GB due to platform validation)
         if grep -q "storageGB: 20" "$POSTGRES_CLAIM" 2>/dev/null; then
-            sed -i.bak 's/storageGB: 20/storageGB: 2/g' "$POSTGRES_CLAIM"
+            sed -i.bak 's/storageGB: 20/storageGB: 10/g' "$POSTGRES_CLAIM"
             rm -f "$POSTGRES_CLAIM.bak"
-            echo -e "  ${GREEN}✓${NC} PostgreSQL storage: 20GB → 2GB"
-        elif grep -q "storageGB: 10" "$POSTGRES_CLAIM" 2>/dev/null; then
-            sed -i.bak 's/storageGB: 10/storageGB: 2/g' "$POSTGRES_CLAIM"
-            rm -f "$POSTGRES_CLAIM.bak"
-            echo -e "  ${GREEN}✓${NC} PostgreSQL storage: 10GB → 2GB"
+            echo -e "  ${GREEN}✓${NC} PostgreSQL storage: 20GB → 10GB"
         else
             echo -e "  ${YELLOW}⊘${NC} PostgreSQL storage already optimized"
         fi

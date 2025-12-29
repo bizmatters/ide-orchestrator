@@ -58,17 +58,29 @@ func main() {
 		dbURL = "postgres://postgres:bizmatters-secure-password@localhost:5432/agent_builder?sslmode=disable"
 	}
 
-	// Connect to PostgreSQL
-	pool, err := pgxpool.New(context.Background(), dbURL)
-	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
-	}
-	defer pool.Close()
+	// Connect to PostgreSQL with retry logic
+	log.Println("Connecting to PostgreSQL database...")
+	var pool *pgxpool.Pool
+	var err error
 
-	// Test database connection
-	if err := pool.Ping(context.Background()); err != nil {
-		log.Fatalf("Failed to ping database: %v", err)
+	// Add a retry loop for the initial connection
+	for i := 0; i < 10; i++ {
+		pool, err = pgxpool.New(context.Background(), dbURL)
+		if err == nil {
+			err = pool.Ping(context.Background())
+			if err == nil {
+				break
+			}
+		}
+		log.Printf("Waiting for database... (attempt %d/10): %v", i+1, err)
+		time.Sleep(3 * time.Second)
 	}
+
+	if err != nil {
+		log.Fatalf("Failed to connect to database after retries: %v", err)
+	}
+
+	defer pool.Close()
 	log.Println("Connected to PostgreSQL database")
 
 	// Initialize orchestration layer

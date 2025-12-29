@@ -29,7 +29,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 FROM alpine:latest
 
 # Install runtime dependencies
-RUN apk add --no-cache ca-certificates tzdata bash
+RUN apk add --no-cache ca-certificates tzdata bash postgresql-client
 
 # Create non-root user
 RUN addgroup -g 1000 app && \
@@ -43,6 +43,11 @@ COPY --from=builder /build/ide-orchestrator ./bin/ide-orchestrator
 COPY --from=builder /build/migrations ./migrations
 COPY --from=builder /build/scripts ./scripts
 COPY --from=builder /go/bin/migrate /usr/local/bin/migrate
+
+# Copy tests and source for in-cluster execution
+COPY --from=builder /build/tests ./tests
+COPY --from=builder /build/internal ./internal
+COPY --from=builder /build/go.mod /build/go.sum ./
 
 # Make scripts executable
 RUN chmod +x ./scripts/ci/*.sh

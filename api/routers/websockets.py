@@ -10,6 +10,7 @@ import websockets
 import httpx
 
 from core.jwt_manager import JWTManager
+from core.metrics import metrics
 from services.orchestration_service import OrchestrationService
 from api.dependencies import get_jwt_manager, get_orchestration_service, get_database_url
 
@@ -85,6 +86,9 @@ async def stream_refinement(
     """
     await websocket.accept()
     
+    # Record WebSocket connection metrics
+    metrics.record_websocket_connection(thread_id)
+    
     try:
         # Validate authentication
         user_id = await validate_websocket_auth(websocket, token, authorization)
@@ -131,6 +135,9 @@ async def stream_refinement(
             await websocket.close(code=1011, reason="Internal server error")
         except:
             pass
+    finally:
+        # Record WebSocket disconnection metrics
+        metrics.record_websocket_disconnection(thread_id)
 
 
 async def proxy_websocket_with_state_extraction(

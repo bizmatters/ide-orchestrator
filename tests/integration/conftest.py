@@ -57,18 +57,56 @@ async def test_client(app):
 @pytest.fixture(scope="session")
 def mock_deepagents_server():
     """
-    Provide mock deepagents-runtime server URL.
+    Start and provide mock deepagents-runtime server.
     
-    The mock server should be started separately or as part of test setup.
-    This fixture just returns the URL.
+    Starts the mock server in a separate process and returns the URL.
     """
+    import subprocess
+    import time
+    import requests
+    from pathlib import Path
+    
     # Check for mock URL override
     mock_url = os.getenv("MOCK_SPEC_ENGINE_URL")
     if mock_url:
         return mock_url
     
-    # Default mock server URL
-    return "http://localhost:8001"
+    # Start mock server
+    mock_port = 8001
+    mock_url = f"http://localhost:{mock_port}"
+    
+    # Path to mock server script
+    mock_script = Path(__file__).parent.parent / "mock" / "deepagents_mock.py"
+    
+    # Start mock server process
+    process = subprocess.Popen([
+        "python", "-c", 
+        f"""
+import sys
+sys.path.append('{Path(__file__).parent.parent}')
+from mock.deepagents_mock import create_mock_server
+server = create_mock_server()
+server.run(host='127.0.0.1', port={mock_port})
+"""
+    ])
+    
+    # Wait for server to start
+    for _ in range(30):  # Wait up to 30 seconds
+        try:
+            response = requests.get(f"{mock_url}/state/test", timeout=1)
+            if response.status_code == 200:
+                break
+        except:
+            time.sleep(1)
+    else:
+        process.terminate()
+        raise RuntimeError("Mock deepagents server failed to start")
+    
+    yield mock_url
+    
+    # Cleanup
+    process.terminate()
+    process.wait()
 
 
 @pytest.fixture(scope="function")

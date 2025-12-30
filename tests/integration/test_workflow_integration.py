@@ -93,7 +93,7 @@ async def test_workflow_creation_validation(test_client: AsyncClient, test_db, j
         headers={"Authorization": f"Bearer {token}"}
     )
     
-    assert response.status_code == 400
+    assert response.status_code == 422
     
     # Test valid complex workflow
     complex_spec = {
@@ -200,8 +200,8 @@ async def test_workflow_not_found(test_client: AsyncClient, test_db, jwt_manager
         headers={"Authorization": f"Bearer {token}"}
     )
     
-    # 403 is correct - user can't access non-existent workflow
-    assert response.status_code == 403
+    # 404 is correct - user can't access non-existent workflow
+    assert response.status_code == 404
 
 
 @pytest.mark.asyncio

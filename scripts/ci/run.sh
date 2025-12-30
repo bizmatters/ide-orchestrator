@@ -1,8 +1,38 @@
 #!/bin/bash
 set -euo pipefail
 
-# Runtime Bootstrapper for ide-orchestrator service
-# This script runs inside the container to start the application
+# ==============================================================================
+# Tier 3 CI Script: Service Entrypoint
+# ==============================================================================
+# Purpose: Start the ide-orchestrator service inside the production container
+# Owner: Backend Developer
+# Called by: Dockerfile ENTRYPOINT
+#
+# Environment Variables (Container runtime):
+#   - PORT: HTTP server port (default: 8080)
+#   - LOG_LEVEL: Logging verbosity (default: info)
+#   - POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
+#   - IDEO_SPEC_ENGINE_URL: deepagents-runtime service URL
+#   - JWT_SECRET: JWT signing secret
+#
+# Assumptions:
+#   - Dependencies already installed (handled by Dockerfile)
+#   - Infrastructure pre-provisioned (PostgreSQL)
+#   - Service connects using environment variables from Kubernetes Secrets
+# ==============================================================================
+
+# Configuration
+PORT="${PORT:-8080}"
+LOG_LEVEL="${LOG_LEVEL:-info}"
+
+echo "================================================================================"
+echo "Starting IDE Orchestrator Service (CI/Production Mode)"
+echo "================================================================================"
+echo "  Port:                 ${PORT}"
+echo "  Log Level:            ${LOG_LEVEL}"
+echo "  Postgres Host:        ${POSTGRES_HOST:-not set}"
+echo "  Spec Engine URL:      ${IDEO_SPEC_ENGINE_URL:-not set}"
+echo "================================================================================"
 
 # 1. Construct DATABASE_URL from platform-provided granular variables
 # These are injected via envFrom: ide-orchestrator-db-conn
@@ -26,17 +56,36 @@ if [[ -n "${POSTGRES_HOST:-}" ]]; then
     fi
 fi
 
+# Validate required environment variables
+if [ -z "${POSTGRES_HOST}" ]; then
+    echo "❌ ERROR: POSTGRES_HOST environment variable is required"
+    exit 1
+fi
+
+if [ -z "${POSTGRES_PASSWORD}" ]; then
+    echo "❌ ERROR: POSTGRES_PASSWORD environment variable is required"
+    exit 1
+fi
+
+if [ -z "${JWT_SECRET}" ]; then
+    echo "❌ ERROR: JWT_SECRET environment variable is required"
+    exit 1
+fi
+
 # 2. Optional dependency wait (basic connectivity check)
 if [[ -n "${IDEO_SPEC_ENGINE_URL:-}" ]]; then
     echo "🔍 Will connect to spec engine at ${IDEO_SPEC_ENGINE_URL}"
 fi
 
-# 3. Start the application
-# Use 'exec' so the app becomes PID 1 (receives SIGTERM signals correctly)
+# 3. Start the application using uvicorn
+# - Dependencies pre-installed in container
+# - Application code at /app/ 
+# - Uvicorn runs the FastAPI app from api.main:app
 echo "🚀 Starting ide-orchestrator service..."
-echo "  Port: ${PORT:-8080}"
-echo "  Environment: ${GO_ENV:-production}"
-echo "  Log Level: ${LOG_LEVEL:-info}"
 
-# Just exec the binary; Gin and your code will pick up PORT and GO_ENV from the environment
-exec ./bin/ide-orchestrator
+exec uvicorn api.main:app \
+    --host 0.0.0.0 \
+    --port "${PORT}" \
+    --log-level "${LOG_LEVEL}" \
+    --no-access-log \
+    --proxy-headers

@@ -10,12 +10,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Set working directory
 WORKDIR /build
 
-# Copy dependency files and source code
+# Copy dependency files first for better caching
 COPY pyproject.toml ./
+
+# Copy all source code
 COPY api ./api
 COPY core ./core
 COPY models ./models
 COPY services ./services
+COPY tests ./tests
+COPY migrations ./migrations
+COPY scripts ./scripts
 
 # Install dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
@@ -43,18 +48,18 @@ WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Copy application code
-COPY api ./api
-COPY core ./core
-COPY models ./models
-COPY services ./services
-COPY tests ./tests
-COPY migrations ./migrations
-COPY scripts ./scripts
-COPY pyproject.toml ./
+# Copy ALL application code and files
+COPY --from=builder /build/api ./api
+COPY --from=builder /build/core ./core
+COPY --from=builder /build/models ./models
+COPY --from=builder /build/services ./services
+COPY --from=builder /build/tests ./tests
+COPY --from=builder /build/migrations ./migrations
+COPY --from=builder /build/scripts ./scripts
+COPY --from=builder /build/pyproject.toml ./
 
 # Make scripts executable
-RUN chmod +x ./scripts/ci/*.sh || true
+RUN chmod +x ./scripts/ci/*.sh
 
 # Set ownership
 RUN chown -R app:app /app
@@ -69,5 +74,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/health')" || exit 1
 
-# Run the application
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8080"]
+# Use the CI run script as entrypoint
+ENTRYPOINT ["./scripts/ci/run.sh"]

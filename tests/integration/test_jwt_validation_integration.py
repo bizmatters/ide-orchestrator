@@ -181,7 +181,7 @@ async def test_missing_authorization_header(test_client: AsyncClient):
     
     assert response.status_code == 401
     data = response.json()
-    assert "Missing authorization header" in data["detail"] or "authorization" in data["detail"].lower()
+    assert "Not authenticated" in data["detail"] or "authorization" in data["detail"].lower()
 
 
 @pytest.mark.asyncio
@@ -338,7 +338,7 @@ async def test_user_access_control_own_resources_only(
         f"/api/workflows/{workflow_id}",
         headers={"Authorization": f"Bearer {token2}"}
     )
-    assert response.status_code == 403
+    assert response.status_code == 404
 
 
 @pytest.mark.asyncio

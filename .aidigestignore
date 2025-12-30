@@ -9,3 +9,4 @@ migrations/       # DB diffs; rarely needed for reasoning
 .golangci.yml     # linting rules
 go.sum
 test-binary
+zerotouch-platform

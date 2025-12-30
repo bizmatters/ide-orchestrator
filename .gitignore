@@ -5,3 +5,4 @@ archived
 __pycache__
 .pytest_cache
 zerotouch-platform
+codebase.md

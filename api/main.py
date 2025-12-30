@@ -3,7 +3,7 @@
 from fastapi import FastAPI, Depends
 from fastapi.security import HTTPBearer
 
-from api.routers import auth, health, workflows, refinements
+from api.routers import auth, health, workflows, refinements, websockets
 from api.dependencies import get_current_user
 
 app = FastAPI(title="IDE Orchestrator API")
@@ -16,6 +16,7 @@ app.include_router(health.health_router)  # Root level health endpoints
 app.include_router(auth.router)
 app.include_router(workflows.router)
 app.include_router(refinements.router)
+app.include_router(websockets.router)
 
 
 @app.get("/api/protected")

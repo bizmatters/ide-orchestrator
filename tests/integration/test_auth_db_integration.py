@@ -27,7 +27,7 @@ async def test_database_user_authentication_integration(test_client: AsyncClient
     
     assert response.status_code == 200
     data = response.json()
-    assert data["user_id"] == user_id
+    assert str(data["user_id"]) == str(user_id)  # Convert both to strings for comparison
     assert data["email"] == user_email
     assert data["message"] == "Access granted"
 
@@ -67,7 +67,7 @@ async def test_database_user_workflow_creation(test_client: AsyncClient, test_db
             (workflow_id,)
         )
         result = cur.fetchone()
-        assert result["created_by_user_id"] == user_id
+        assert str(result["created_by_user_id"]) == str(user_id)  # Convert both to strings for comparison
 
 
 @pytest.mark.asyncio
@@ -136,7 +136,7 @@ async def test_database_login_integration(test_client: AsyncClient, test_db):
     assert response.status_code == 200
     data = response.json()
     assert "token" in data
-    assert data["user_id"] == user_id
+    assert str(data["user_id"]) == str(user_id)  # Convert both to strings for comparison
     
     # Test the returned token works with database
     token = data["token"]
@@ -173,5 +173,5 @@ async def test_database_user_session_persistence(test_client: AsyncClient, test_
         data = response.json()
         
         # Verify consistent user identity across requests
-        assert data["user_id"] == user_id
+        assert str(data["user_id"]) == str(user_id)  # Convert both to strings for comparison
         assert data["email"] == user_email

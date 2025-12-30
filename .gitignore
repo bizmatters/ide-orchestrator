@@ -3,3 +3,5 @@ ide_orchestrator.egg-info
 .env
 archived
 __pycache__
+.pytest_cache
+zerotouch-platform

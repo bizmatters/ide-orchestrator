@@ -84,7 +84,8 @@ class TestDatabase:
             )
             result = cur.fetchone()
             conn.commit()
-            return result["id"]
+            # Convert UUID to string for consistent test comparisons
+            return str(result["id"])
     
     def create_test_workflow(self, user_id: str, name: str, description: str) -> str:
         """
@@ -110,7 +111,8 @@ class TestDatabase:
             )
             result = cur.fetchone()
             conn.commit()
-            return result["id"]
+            # Convert UUID to string for consistent test comparisons
+            return str(result["id"])
     
     def create_test_draft(self, workflow_id: str, specification: str) -> str:
         """
@@ -135,7 +137,8 @@ class TestDatabase:
             )
             result = cur.fetchone()
             conn.commit()
-            return result["id"]
+            # Convert UUID to string for consistent test comparisons
+            return str(result["id"])
     
     def get_workflow_count(self) -> int:
         """Get total number of workflows."""

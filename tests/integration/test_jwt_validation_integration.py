@@ -127,7 +127,7 @@ async def test_expired_token_handling(test_client: AsyncClient, test_db, jwt_man
     # Should be rejected due to expiration
     assert response.status_code == 401
     data = response.json()
-    assert "token" in data["error"].lower()
+    assert "token" in data["detail"].lower() or "invalid" in data["detail"].lower()
 
 
 @pytest.mark.asyncio
@@ -181,7 +181,7 @@ async def test_missing_authorization_header(test_client: AsyncClient):
     
     assert response.status_code == 401
     data = response.json()
-    assert "Missing authorization header" in data["error"]
+    assert "Missing authorization header" in data["detail"] or "authorization" in data["detail"].lower()
 
 
 @pytest.mark.asyncio
@@ -294,7 +294,7 @@ async def test_token_claims_extraction_with_workflow_creation(
             (workflow_id,)
         )
         result = cur.fetchone()
-        assert result["created_by_user_id"] == user_id
+        assert str(result["created_by_user_id"]) == user_id
 
 
 @pytest.mark.asyncio

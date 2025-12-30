@@ -45,7 +45,12 @@ async def test_client(app):
     Yields:
         AsyncClient for making HTTP requests
     """
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    from httpx import ASGITransport
+    
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test"
+    ) as client:
         yield client
 
 
@@ -68,28 +73,22 @@ def mock_deepagents_server():
 
 @pytest.fixture(scope="function")
 def jwt_manager():
-    """
-    Provide JWT manager instance for token generation/validation.
+    """Provide JWT manager instance for token generation/validation."""
+    from core.jwt_manager import JWTManager
+    import os
     
-    This fixture will be implemented once the auth module is created.
-    """
-    # TODO: Import and return actual JWTManager instance
-    # from api.auth import JWTManager
-    # return JWTManager()
-    raise NotImplementedError("JWTManager not yet implemented")
+    # Set test JWT secret if not already set
+    if not os.getenv("JWT_SECRET"):
+        os.environ["JWT_SECRET"] = "test-secret-key-for-testing"
+    
+    return JWTManager()
 
 
 @pytest.fixture(scope="function")
 def app():
-    """
-    Provide FastAPI application instance.
-    
-    This fixture will be implemented once the API module is created.
-    """
-    # TODO: Import and return actual FastAPI app
-    # from api.main import app
-    # return app
-    raise NotImplementedError("FastAPI app not yet implemented")
+    """Provide FastAPI application instance."""
+    from api.main import app
+    return app
 
 
 # Pytest configuration

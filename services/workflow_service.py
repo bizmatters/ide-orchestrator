@@ -76,7 +76,7 @@ class WorkflowService:
                 cur.execute(
                     """
                     SELECT id, version_number, status, created_at, updated_at
-                    FROM workflow_versions
+                    FROM versions
                     WHERE workflow_id = %s
                     ORDER BY version_number DESC
                     """,
@@ -99,7 +99,7 @@ class WorkflowService:
                 cur.execute(
                     """
                     SELECT id, version_number, status, specification, created_at, updated_at
-                    FROM workflow_versions
+                    FROM versions
                     WHERE workflow_id = %s AND version_number = %s
                     """,
                     (workflow_id, version_number)
@@ -149,7 +149,7 @@ class WorkflowService:
                     cur.execute(
                         """
                         SELECT COALESCE(MAX(version_number), 0) + 1 as next_version
-                        FROM workflow_versions WHERE workflow_id = %s
+                        FROM versions WHERE workflow_id = %s
                         """,
                         (workflow_id,)
                     )
@@ -161,7 +161,7 @@ class WorkflowService:
                     
                     cur.execute(
                         """
-                        INSERT INTO workflow_versions 
+                        INSERT INTO versions 
                         (id, workflow_id, version_number, status, created_at, updated_at)
                         VALUES (%s, %s, %s, %s, %s, %s)
                         RETURNING id, version_number
@@ -173,7 +173,7 @@ class WorkflowService:
                     # Copy draft files to version
                     cur.execute(
                         """
-                        INSERT INTO workflow_version_files (version_id, file_path, content, file_type, created_at)
+                        INSERT INTO specification_files (version_id, file_path, content, file_type, created_at)
                         SELECT %s, file_path, content, file_type, %s
                         FROM draft_specification_files WHERE draft_id = %s
                         """,
@@ -224,9 +224,9 @@ class WorkflowService:
                     # Validate workflow access and version exists
                     cur.execute(
                         """
-                        SELECT wv.id, wv.status FROM workflow_versions wv
-                        JOIN workflows w ON wv.workflow_id = w.id
-                        WHERE w.id = %s AND w.created_by_user_id = %s AND wv.version_number = %s
+                        SELECT v.id, v.status FROM versions v
+                        JOIN workflows w ON v.workflow_id = w.id
+                        WHERE w.id = %s AND w.created_by_user_id = %s AND v.version_number = %s
                         FOR UPDATE
                         """,
                         (workflow_id, user_id, version_number)

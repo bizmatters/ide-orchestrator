@@ -95,7 +95,7 @@ class ProposalService:
                     """
                     SELECT id, draft_id, thread_id, user_prompt, context_file_path,
                            context_selection, status, ai_generated_content, generated_files,
-                           created_at, completed_at, created_by_user_id, resolved_by_user_id, resolved_at
+                           created_at, completed_at, created_by_user_id, resolved_by_user_id, resolved_at, resolution
                     FROM proposals
                     WHERE id = %s
                     """,
@@ -192,7 +192,7 @@ class ProposalService:
                 cur.execute(
                     f"""
                     SELECT p.id, p.draft_id, p.status, p.generated_files, p.thread_id, 
-                           p.ai_generated_content, d.workflow_id
+                           p.ai_generated_content, p.resolution, d.workflow_id
                     FROM proposals p
                     JOIN proposal_access pa ON p.id = pa.proposal_id
                     JOIN drafts d ON p.draft_id = d.id
@@ -233,6 +233,34 @@ class ProposalService:
                     WHERE id = %s
                     """,
                     (status, user_id, datetime.utcnow(), audit_trail_json, proposal_id)
+                )
+                conn.commit()
+    
+    def resolve_proposal(
+        self,
+        proposal_id: str,
+        resolution: str,
+        user_id: str,
+        audit_trail_json: str
+    ) -> None:
+        """
+        Resolve a proposal with approved or rejected outcome.
+        
+        Args:
+            proposal_id: Proposal ID
+            resolution: Resolution outcome (approved, rejected)
+            user_id: User ID who resolved the proposal
+            audit_trail_json: Updated audit trail as JSON string
+        """
+        with psycopg.connect(self.database_url, row_factory=dict_row) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE proposals 
+                    SET status = %s, resolution = %s, resolved_by_user_id = %s, resolved_at = %s, ai_generated_content = %s
+                    WHERE id = %s
+                    """,
+                    ("resolved", resolution, user_id, datetime.utcnow(), audit_trail_json, proposal_id)
                 )
                 conn.commit()
     

@@ -201,8 +201,12 @@ class OrchestrationService:
         # Apply generated files to draft
         files_applied = 0
         if proposal["generated_files"]:
-            import json
-            generated_files = json.loads(proposal["generated_files"])
+            # generated_files is already a dictionary from JSONB field
+            generated_files = proposal["generated_files"]
+            if isinstance(generated_files, str):
+                # Handle case where it might still be a JSON string
+                import json
+                generated_files = json.loads(generated_files)
             files_applied = self.draft_service.apply_files_to_draft(
                 proposal["draft_id"], generated_files
             )
@@ -212,8 +216,8 @@ class OrchestrationService:
             proposal.get("ai_generated_content"), user_id, files_applied
         )
         
-        # Update proposal status
-        self.proposal_service.update_proposal_status(
+        # Update proposal status to resolved with approved resolution
+        self.proposal_service.resolve_proposal(
             proposal_id, "approved", user_id, audit_trail_json
         )
         
@@ -244,8 +248,8 @@ class OrchestrationService:
             proposal.get("ai_generated_content"), user_id
         )
         
-        # Update proposal status
-        self.proposal_service.update_proposal_status(
+        # Update proposal status to resolved with rejected resolution
+        self.proposal_service.resolve_proposal(
             proposal_id, "rejected", user_id, audit_trail_json
         )
         

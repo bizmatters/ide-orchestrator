@@ -16,7 +16,7 @@ spec:
       restartPolicy: Never
       containers:
       - name: migrations
-        image: image: ghcr.io/arun4infra/ide-orchestrator:latest
+        image: ghcr.io/arun4infra/ide-orchestrator:latest
         command: ["/bin/sh", "-c"]
         args: 
           - |

@@ -70,18 +70,11 @@ class DeepAgentsMockServer:
         
         print(f"[DEBUG] Mock deepagents-runtime server started on port: {self.port}")
         
-        # For Kubernetes cluster testing, we need to use the pod's service name
-        # The production WebSocket proxy needs to connect to this mock server
-        # In cluster, the test pod needs to expose this mock server via a service
-        import socket
-        hostname = socket.gethostname()
-        
-        # Set environment variable for production WebSocket proxy to use mock
-        # Use the test pod's hostname and port for cluster communication
-        mock_url = f"http://{hostname}:{self.port}"
+        # Set environment variable for WebSocket proxy to use mock
+        # Since app runs in-process with test (ASGITransport), use localhost
+        mock_url = f"http://127.0.0.1:{self.port}"
         os.environ["DEEPAGENTS_RUNTIME_URL"] = mock_url
         print(f"[DEBUG] Set DEEPAGENTS_RUNTIME_URL to: {mock_url}")
-        print(f"[DEBUG] Mock server accessible at: {mock_url}")
     
     async def _handle_invoke(self, request):
         """Handle POST /invoke requests."""

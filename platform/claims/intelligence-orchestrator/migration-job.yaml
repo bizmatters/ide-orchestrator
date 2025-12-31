@@ -16,7 +16,7 @@ spec:
       restartPolicy: Never
       containers:
       - name: migrations
-        image: ide-orchestrator:ci-test
+        image: ghcr.io/arun4infra/deepagents-runtime:latest
         command: ["/bin/sh", "-c"]
         args: 
           - |

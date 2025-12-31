@@ -1,8 +1,8 @@
 """
 Custom assertion helpers for refinement integration tests.
 
-Provides specialized assertions for validating refinement workflow behavior,
-database state, and integration requirements compliance.
+Provides specialized assertions for validating refinement workflow behavior
+using production services following integration testing patterns.
 """
 
 import json
@@ -54,17 +54,15 @@ def assert_refinement_response_valid(
 async def assert_proposal_state(
     proposal_id: str,
     expected_status: str,
-    database_url: str,
     has_files: Optional[bool] = None,
     expected_resolution: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Validate proposal database state.
+    Validate proposal database state using production service.
     
     Args:
         proposal_id: Proposal ID to check
         expected_status: Expected proposal status
-        database_url: Database connection URL
         has_files: Whether proposal should have generated_files (None = don't check)
         expected_resolution: Expected resolution value (None = don't check)
         
@@ -74,7 +72,7 @@ async def assert_proposal_state(
     Raises:
         AssertionError: If proposal state doesn't match expectations
     """
-    proposal = await get_proposal_by_id(proposal_id, database_url)
+    proposal = await get_proposal_by_id(proposal_id)
     assert proposal is not None, f"Proposal {proposal_id} not found"
     
     assert proposal["status"] == expected_status, \
@@ -103,35 +101,13 @@ async def assert_proposal_state(
     return proposal
 
 
-async def assert_draft_content_matches(
-    workflow_id: str,
-    expected_content: Dict[str, str],
-    database_url: str
-):
-    """
-    Validate draft content matches expected via database query.
-    
-    Args:
-        workflow_id: Workflow ID
-        expected_content: Expected draft content (file_path -> content)
-        database_url: Database connection URL
-        
-    Raises:
-        AssertionError: If draft content doesn't match expected
-    """
-    actual_content = await get_draft_content_by_workflow(workflow_id, database_url)
-    
-    assert actual_content == expected_content, \
-        f"Draft content mismatch.\nExpected: {expected_content}\nActual: {actual_content}"
-
-
 async def assert_content_integrity(
     proposal_id: str,
     workflow_id: str,
-    database_url: str
+    user_id: str
 ):
     """
-    Validate exact content match between proposal and draft.
+    Validate exact content match between proposal and draft using production services.
     
     This ensures that when a proposal is approved, the draft content
     exactly matches the proposal's generated_files content.
@@ -139,13 +115,13 @@ async def assert_content_integrity(
     Args:
         proposal_id: Proposal ID
         workflow_id: Workflow ID
-        database_url: Database connection URL
+        user_id: User ID for access control
         
     Raises:
         AssertionError: If content doesn't match exactly
     """
-    # Get proposal generated files
-    proposal = await get_proposal_by_id(proposal_id, database_url)
+    # Get proposal generated files through production service
+    proposal = await get_proposal_by_id(proposal_id)
     assert proposal is not None, f"Proposal {proposal_id} not found"
     assert proposal["generated_files"] is not None, "Proposal has no generated_files"
     
@@ -165,8 +141,8 @@ async def assert_content_integrity(
         else:
             expected_draft_content[file_path] = str(file_data)
     
-    # Get actual draft content
-    actual_draft_content = await get_draft_content_by_workflow(workflow_id, database_url)
+    # Get actual draft content through production service
+    actual_draft_content = await get_draft_content_by_workflow(workflow_id, user_id)
     
     print(f"[DEBUG] Expected draft content keys: {list(expected_draft_content.keys())}")
     print(f"[DEBUG] Actual draft content keys: {list(actual_draft_content.keys())}")
@@ -189,22 +165,22 @@ async def assert_content_integrity(
 async def assert_draft_content_unchanged(
     workflow_id: str,
     baseline_content: Dict[str, str],
-    database_url: str
+    user_id: str
 ):
     """
-    Validate that draft content remains unchanged from baseline.
+    Validate that draft content remains unchanged from baseline using production service.
     
     This is used in rejection tests to ensure no data leakage occurs.
     
     Args:
         workflow_id: Workflow ID
         baseline_content: Baseline content to compare against
-        database_url: Database connection URL
+        user_id: User ID for access control
         
     Raises:
         AssertionError: If draft content has changed from baseline
     """
-    current_content = await get_draft_content_by_workflow(workflow_id, database_url)
+    current_content = await get_draft_content_by_workflow(workflow_id, user_id)
     
     assert current_content == baseline_content, \
         f"Draft content changed unexpectedly.\nBaseline: {baseline_content}\nCurrent: {current_content}"
@@ -243,11 +219,10 @@ def assert_runtime_cleanup_called(thread_id: str):
 async def assert_context_metadata_persisted(
     proposal_id: str,
     expected_context_file_path: Optional[str],
-    expected_context_selection: Optional[str],
-    database_url: str
+    expected_context_selection: Optional[str]
 ):
     """
-    Validate that context metadata is correctly persisted in proposals table.
+    Validate that context metadata is correctly persisted using production service.
     
     This validates Requirement 7.1: context_file_path and context_selection
     are correctly stored during refinement request.
@@ -256,13 +231,12 @@ async def assert_context_metadata_persisted(
         proposal_id: Proposal ID
         expected_context_file_path: Expected context file path
         expected_context_selection: Expected context selection
-        database_url: Database connection URL
         
     Raises:
         AssertionError: If context metadata doesn't match expected values
     """
     is_persisted = await verify_context_persistence(
-        proposal_id, expected_context_file_path, expected_context_selection, database_url
+        proposal_id, expected_context_file_path, expected_context_selection
     )
     
     assert is_persisted, \

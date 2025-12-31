@@ -60,12 +60,13 @@ async def can_access_thread(user_id: str, thread_id: str) -> bool:
         orchestration_service = get_orchestration_service()
         
         # Check if there's a proposal with this thread_id that the user can access
-        # This is a simplified check - in full implementation, we'd check the database
-        # For now, we'll allow access if the thread_id follows our format
-        if thread_id.startswith("refinement-") or thread_id.startswith("test-thread-"):
-            return True
+        proposal = orchestration_service.get_proposal_by_thread_id(thread_id)
+        if not proposal:
+            return False
         
-        return False
+        # Check if user has access to this proposal
+        return orchestration_service.can_access_proposal(proposal["id"], user_id)
+        
     except Exception as e:
         logger.error(f"Error checking thread access: {e}")
         return False

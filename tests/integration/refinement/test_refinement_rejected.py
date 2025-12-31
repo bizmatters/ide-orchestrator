@@ -15,7 +15,7 @@ import asyncio
 from httpx import AsyncClient
 
 from .shared.fixtures import (
-    refinement_test_context,
+    test_user_token,
     sample_initial_draft_content,
     sample_generated_files_rejected,
     sample_refinement_request_rejected
@@ -42,7 +42,7 @@ from .shared.assertions import (
 @pytest.mark.asyncio
 async def test_refinement_rejected_lifecycle(
     test_client: AsyncClient,
-    refinement_test_context,
+    test_user_token,
     sample_initial_draft_content,
     sample_generated_files_rejected,
     sample_refinement_request_rejected
@@ -52,266 +52,268 @@ async def test_refinement_rejected_lifecycle(
     
     This test validates the "Undo Path" where:
     1. User initiates refinement request
-    2. WebSocket streaming processes and updates proposal
+    2. Production orchestration service processes request
     3. User rejects the proposal
     4. Draft content remains completely unchanged
     5. System performs cleanup and marks proposal as resolved
     
-    Focus: No data leakage and draft state preservation
+    Focus: No data leakage and draft state preservation using production services
     """
-    user_id, token, database_url, workflow_service, proposal_service, draft_service = refinement_test_context
+    user_id, token = test_user_token
     
-    # Step 1: Setup workflow and draft using shared utility
-    workflow_id, draft_id = await create_test_workflow_with_draft(
-        user_id=user_id,
-        workflow_name="Rejection Test Workflow",
-        draft_content=sample_initial_draft_content,
-        database_url=database_url,
-        draft_name="Rejected Test Draft",
-        draft_description="Draft for rejected lifecycle testing"
-    )
+    # Setup mock server for deepagents-runtime (external dependency)
+    mock_server = create_mock_deepagents_server("rejected")
+    await mock_server.start()
     
-    # Step 2: Capture baseline draft content for comparison
-    baseline_draft_content = await get_draft_content_by_workflow(workflow_id, database_url)
-    assert baseline_draft_content == sample_initial_draft_content, "Baseline content mismatch"
-    
-    # Step 3: Setup cleanup tracking to verify Requirement 4.5
-    print(f"[DEBUG] Setting up cleanup tracking for rejected test")
-    with setup_cleanup_tracking():
-        # Step 4: Trigger refinement request - production code will use mock server via env var
-        print(f"[DEBUG] Making refinement request - production code will connect to mock server")
-        response = await test_client.post(
-            f"/api/workflows/{workflow_id}/refinements",
-            json=sample_refinement_request_rejected,
-            headers={"Authorization": f"Bearer {token}"}
+    try:
+        # Step 1: Setup workflow and draft using production services
+        workflow_id, draft_id = await create_test_workflow_with_draft(
+            user_id=user_id,
+            workflow_name="Rejection Test Workflow",
+            draft_content=sample_initial_draft_content,
+            draft_name="Rejected Test Draft",
+            draft_description="Draft for rejected lifecycle testing"
         )
         
-        # Validate: Response contains thread_id and proposal_id; status is processing
-        print(f"[DEBUG] Refinement response: {response.status_code}")
-        if response.status_code != 202:
-            print(f"[DEBUG] Response content: {response.content}")
-        refinement_data = assert_refinement_response_valid(response, expected_status=202)
-        proposal_id = refinement_data["proposal_id"]
-        thread_id = refinement_data["thread_id"]
-        print(f"[DEBUG] Got proposal_id: {proposal_id}, thread_id: {thread_id}")
+        # Step 2: Capture baseline draft content for comparison
+        baseline_draft_content = await get_draft_content_by_workflow(workflow_id, user_id)
+        assert baseline_draft_content == sample_initial_draft_content, "Baseline content mismatch"
         
-        # Step 5: Verify initial proposal state
-        print(f"[DEBUG] Checking initial proposal state")
-        await assert_proposal_state(
-            proposal_id=proposal_id,
-            expected_status="processing",
-            database_url=database_url,
-            has_files=False
-        )
-        
-        # Step 6: Verify context metadata persistence (Requirement 7.1)
-        print(f"[DEBUG] Verifying context metadata persistence")
-        await assert_context_metadata_persisted(
-            proposal_id=proposal_id,
-            expected_context_file_path=sample_refinement_request_rejected["context_file_path"],
-            expected_context_selection=sample_refinement_request_rejected["context_selection"],
-            database_url=database_url
-        )
-        
-        # Step 7: Wait for WebSocket proxy to process the stream and update proposal
-        # This tests that proposal gets updated but draft remains isolated
-        print(f"[DEBUG] Waiting for WebSocket proxy to process stream and update proposal")
-        await wait_for_proposal_completion_via_websocket(
-            proposal_service=proposal_service,
-            proposal_id=proposal_id,
-            thread_id=thread_id
-        )
-        
-        # Step 8: Validate proposal completion state (has different content)
-        print(f"[DEBUG] Validating proposal completion state")
-        await assert_proposal_state(
-            proposal_id=proposal_id,
-            expected_status="completed",
-            database_url=database_url,
-            has_files=True
-        )
-        
-        # Step 9: Critical - Verify draft content is still unchanged
-        print(f"[DEBUG] Verifying draft content is still unchanged")
-        await assert_draft_content_unchanged(
-            workflow_id=workflow_id,
-            baseline_content=baseline_draft_content,
-            database_url=database_url
-        )
-        
-        # Step 10: Reject the proposal through production API
-        print(f"[DEBUG] Rejecting proposal through API")
-        response = await test_client.post(
-            f"/api/refinements/{proposal_id}/reject",
-            headers={"Authorization": f"Bearer {token}"}
-        )
-        
-        # Validate: Rejection response structure
-        print(f"[DEBUG] Rejection response: {response.status_code}")
-        if response.status_code != 200:
-            print(f"[DEBUG] Rejection response content: {response.content}")
-        rejection_data = assert_rejection_response_valid(response)
-        assert rejection_data["proposal_id"] == proposal_id
-        
-        # Step 11: Validate final proposal resolution state
-        print(f"[DEBUG] Validating final proposal resolution state")
-        await assert_proposal_state(
-            proposal_id=proposal_id,
-            expected_status="resolved",
-            database_url=database_url,
-            has_files=True,
-            expected_resolution="rejected"
-        )
-        
-        # Step 12: Critical - Verify draft content is STILL unchanged (no data leakage)
-        print(f"[DEBUG] Verifying draft content is STILL unchanged (no data leakage)")
-        await assert_draft_content_unchanged(
-            workflow_id=workflow_id,
-            baseline_content=baseline_draft_content,
-            database_url=database_url
-        )
-        
-        # Step 13: Verify runtime cleanup was called (Requirement 4.5)
-        print(f"[DEBUG] Verifying runtime cleanup was called for thread_id: {thread_id}")
-        # Wait a bit for the async cleanup task to complete
-        print(f"[DEBUG] Waiting for async cleanup task to complete...")
-        await asyncio.sleep(0.5)  # Give the background task time to run
-        assert_runtime_cleanup_called(thread_id)
-        print(f"[DEBUG] Rejected test completed successfully!")
+        # Step 3: Setup cleanup tracking to verify Requirement 4.5
+        print(f"[DEBUG] Setting up cleanup tracking for rejected test")
+        with setup_cleanup_tracking():
+            # Step 4: Trigger refinement request through production API
+            print(f"[DEBUG] Making refinement request through production API")
+            response = await test_client.post(
+                f"/api/workflows/{workflow_id}/refinements",
+                json=sample_refinement_request_rejected,
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            
+            # Validate: Response contains thread_id and proposal_id; status is processing
+            print(f"[DEBUG] Refinement response: {response.status_code}")
+            if response.status_code != 202:
+                print(f"[DEBUG] Response content: {response.content}")
+            refinement_data = assert_refinement_response_valid(response, expected_status=202)
+            proposal_id = refinement_data["proposal_id"]
+            thread_id = refinement_data["thread_id"]
+            print(f"[DEBUG] Got proposal_id: {proposal_id}, thread_id: {thread_id}")
+            
+            # Step 5: Verify initial proposal state through production service
+            print(f"[DEBUG] Checking initial proposal state")
+            await assert_proposal_state(
+                proposal_id=proposal_id,
+                expected_status="processing",
+                has_files=False
+            )
+            
+            # Step 6: Verify context metadata persistence (Requirement 7.1)
+            print(f"[DEBUG] Verifying context metadata persistence")
+            await assert_context_metadata_persisted(
+                proposal_id=proposal_id,
+                expected_context_file_path=sample_refinement_request_rejected["context_file_path"],
+                expected_context_selection=sample_refinement_request_rejected["context_selection"]
+            )
+            
+            # Step 7: Wait for production orchestration service to complete processing
+            print(f"[DEBUG] Waiting for production orchestration service to complete processing")
+            await wait_for_proposal_completion_via_orchestration(
+                proposal_service=None,  # Use production service
+                proposal_id=proposal_id
+            )
+            
+            # Step 8: Validate proposal completion state (has different content)
+            print(f"[DEBUG] Validating proposal completion state")
+            await assert_proposal_state(
+                proposal_id=proposal_id,
+                expected_status="completed",
+                has_files=True
+            )
+            
+            # Step 9: Critical - Verify draft content is still unchanged
+            print(f"[DEBUG] Verifying draft content is still unchanged")
+            await assert_draft_content_unchanged(
+                workflow_id=workflow_id,
+                baseline_content=baseline_draft_content,
+                user_id=user_id
+            )
+            
+            # Step 10: Reject the proposal through production API
+            print(f"[DEBUG] Rejecting proposal through production API")
+            response = await test_client.post(
+                f"/api/refinements/{proposal_id}/reject",
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            
+            # Validate: Rejection response structure
+            print(f"[DEBUG] Rejection response: {response.status_code}")
+            if response.status_code != 200:
+                print(f"[DEBUG] Rejection response content: {response.content}")
+            rejection_data = assert_rejection_response_valid(response)
+            assert rejection_data["proposal_id"] == proposal_id
+            
+            # Step 11: Validate final proposal resolution state
+            print(f"[DEBUG] Validating final proposal resolution state")
+            await assert_proposal_state(
+                proposal_id=proposal_id,
+                expected_status="resolved",
+                has_files=True,
+                expected_resolution="rejected"
+            )
+            
+            # Step 12: Critical - Verify draft content is STILL unchanged (no data leakage)
+            print(f"[DEBUG] Verifying draft content is STILL unchanged (no data leakage)")
+            await assert_draft_content_unchanged(
+                workflow_id=workflow_id,
+                baseline_content=baseline_draft_content,
+                user_id=user_id
+            )
+            
+            # Step 13: Verify runtime cleanup was called (Requirement 4.5)
+            print(f"[DEBUG] Verifying runtime cleanup was called for thread_id: {thread_id}")
+            await asyncio.sleep(0.5)  # Give the background task time to run
+            assert_runtime_cleanup_called(thread_id)
+            print(f"[DEBUG] Rejected test completed successfully!")
+            
+    finally:
+        await mock_server.stop()
 
 
 @pytest.mark.asyncio
 async def test_refinement_rejected_data_isolation(
     test_client: AsyncClient,
-    refinement_test_context,
+    test_user_token,
     sample_initial_draft_content,
     sample_generated_files_rejected,
     sample_refinement_request_rejected
 ):
     """
-    Test data isolation between proposal and draft during rejection.
+    Test data isolation between proposal and draft during rejection using production services.
     
     Focus: Validates that proposal content never leaks into draft
     - Proposal can have completely different content
     - Draft remains isolated throughout the entire process
     - Multiple rejection cycles don't cause data corruption
     """
-    user_id, token, database_url, workflow_service, proposal_service, draft_service = refinement_test_context
+    user_id, token = test_user_token
     
-    # Setup workflow and draft
-    workflow_id, draft_id = await create_test_workflow_with_draft(
-        user_id=user_id,
-        workflow_name="Data Isolation Test Workflow",
-        draft_content=sample_initial_draft_content,
-        database_url=database_url
-    )
+    # Setup mock server for deepagents-runtime (external dependency)
+    mock_server = create_mock_deepagents_server("rejected")
+    await mock_server.start()
     
-    # Capture original content
-    original_content = await get_draft_content_by_workflow(workflow_id, database_url)
-    
-    # Create first proposal with different content
-    print(f"[DEBUG] Creating first proposal for data isolation test")
-    response = await test_client.post(
-        f"/api/workflows/{workflow_id}/refinements",
-        json=sample_refinement_request_rejected,
-        headers={"Authorization": f"Bearer {token}"}
-    )
-    
-    print(f"[DEBUG] First refinement response: {response.status_code}")
-    refinement_data_1 = assert_refinement_response_valid(response)
-    proposal_id_1 = refinement_data_1["proposal_id"]
-    thread_id_1 = refinement_data_1["thread_id"]
-    print(f"[DEBUG] Got first proposal_id: {proposal_id_1}, thread_id: {thread_id_1}")
-    
-    # Complete first proposal - wait for WebSocket proxy to process
-    print(f"[DEBUG] Waiting for first proposal to complete via WebSocket proxy")
-    await wait_for_proposal_completion_via_websocket(
-        proposal_service=proposal_service,
-        proposal_id=proposal_id_1,
-        thread_id=thread_id_1
-    )
-    
-    # Verify draft is still unchanged
-    print(f"[DEBUG] Verifying draft is still unchanged after first proposal")
-    await assert_draft_content_unchanged(
-        workflow_id=workflow_id,
-        baseline_content=original_content,
-        database_url=database_url
-    )
-    
-    # Reject first proposal
-    print(f"[DEBUG] Rejecting first proposal")
-    await test_client.post(
-        f"/api/refinements/{proposal_id_1}/reject",
-        headers={"Authorization": f"Bearer {token}"}
-    )
-    
-    # Verify draft is STILL unchanged after rejection
-    print(f"[DEBUG] Verifying draft is STILL unchanged after first rejection")
-    await assert_draft_content_unchanged(
-        workflow_id=workflow_id,
-        baseline_content=original_content,
-        database_url=database_url
-    )
-    
-    # Create second proposal with even more different content
-    print(f"[DEBUG] Creating second proposal for data isolation test")
-    response = await test_client.post(
-        f"/api/workflows/{workflow_id}/refinements",
-        json=sample_refinement_request_rejected,
-        headers={"Authorization": f"Bearer {token}"}
-    )
-    
-    print(f"[DEBUG] Second refinement response: {response.status_code}")
-    refinement_data_2 = assert_refinement_response_valid(response)
-    proposal_id_2 = refinement_data_2["proposal_id"]
-    thread_id_2 = refinement_data_2["thread_id"]
-    print(f"[DEBUG] Got second proposal_id: {proposal_id_2}, thread_id: {thread_id_2}")
-    
-    # Complete second proposal - wait for WebSocket proxy to process
-    print(f"[DEBUG] Waiting for second proposal to complete via WebSocket proxy")
-    await wait_for_proposal_completion_via_websocket(
-        proposal_service=proposal_service,
-        proposal_id=proposal_id_2,
-        thread_id=thread_id_2
-    )
-    
-    # Verify draft is STILL unchanged after second proposal
-    print(f"[DEBUG] Verifying draft is STILL unchanged after second proposal")
-    await assert_draft_content_unchanged(
-        workflow_id=workflow_id,
-        baseline_content=original_content,
-        database_url=database_url
-    )
-    
-    # Reject second proposal
-    print(f"[DEBUG] Rejecting second proposal")
-    await test_client.post(
-        f"/api/refinements/{proposal_id_2}/reject",
-        headers={"Authorization": f"Bearer {token}"}
-    )
-    
-    # Final verification: draft content is completely unchanged
-    print(f"[DEBUG] Final verification: draft content is completely unchanged")
-    await assert_draft_content_unchanged(
-        workflow_id=workflow_id,
-        baseline_content=original_content,
-        database_url=database_url
-    )
-    
-    # Verify both proposals are resolved as rejected
-    print(f"[DEBUG] Verifying both proposals are resolved as rejected")
-    await assert_proposal_state(
-        proposal_id=proposal_id_1,
-        expected_status="resolved",
-        database_url=database_url,
-        expected_resolution="rejected"
-    )
-    
-    await assert_proposal_state(
-        proposal_id=proposal_id_2,
-        expected_status="resolved",
-        database_url=database_url,
-        expected_resolution="rejected"
-    )
-    print(f"[DEBUG] Data isolation test completed successfully!")
+    try:
+        # Setup workflow and draft through production services
+        workflow_id, draft_id = await create_test_workflow_with_draft(
+            user_id=user_id,
+            workflow_name="Data Isolation Test Workflow",
+            draft_content=sample_initial_draft_content
+        )
+        
+        # Capture original content
+        original_content = await get_draft_content_by_workflow(workflow_id, user_id)
+        
+        # Create first proposal with different content
+        print(f"[DEBUG] Creating first proposal for data isolation test")
+        response = await test_client.post(
+            f"/api/workflows/{workflow_id}/refinements",
+            json=sample_refinement_request_rejected,
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        
+        print(f"[DEBUG] First refinement response: {response.status_code}")
+        refinement_data_1 = assert_refinement_response_valid(response)
+        proposal_id_1 = refinement_data_1["proposal_id"]
+        thread_id_1 = refinement_data_1["thread_id"]
+        print(f"[DEBUG] Got first proposal_id: {proposal_id_1}, thread_id: {thread_id_1}")
+        
+        # Complete first proposal through production orchestration service
+        print(f"[DEBUG] Waiting for first proposal to complete via production orchestration service")
+        await wait_for_proposal_completion_via_orchestration(
+            proposal_service=None,
+            proposal_id=proposal_id_1
+        )
+        
+        # Verify draft is still unchanged
+        print(f"[DEBUG] Verifying draft is still unchanged after first proposal")
+        await assert_draft_content_unchanged(
+            workflow_id=workflow_id,
+            baseline_content=original_content,
+            user_id=user_id
+        )
+        
+        # Reject first proposal through production API
+        print(f"[DEBUG] Rejecting first proposal")
+        await test_client.post(
+            f"/api/refinements/{proposal_id_1}/reject",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        
+        # Verify draft is STILL unchanged after rejection
+        print(f"[DEBUG] Verifying draft is STILL unchanged after first rejection")
+        await assert_draft_content_unchanged(
+            workflow_id=workflow_id,
+            baseline_content=original_content,
+            user_id=user_id
+        )
+        
+        # Create second proposal with even more different content
+        print(f"[DEBUG] Creating second proposal for data isolation test")
+        response = await test_client.post(
+            f"/api/workflows/{workflow_id}/refinements",
+            json=sample_refinement_request_rejected,
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        
+        print(f"[DEBUG] Second refinement response: {response.status_code}")
+        refinement_data_2 = assert_refinement_response_valid(response)
+        proposal_id_2 = refinement_data_2["proposal_id"]
+        thread_id_2 = refinement_data_2["thread_id"]
+        print(f"[DEBUG] Got second proposal_id: {proposal_id_2}, thread_id: {thread_id_2}")
+        
+        # Complete second proposal through production orchestration service
+        print(f"[DEBUG] Waiting for second proposal to complete via production orchestration service")
+        await wait_for_proposal_completion_via_orchestration(
+            proposal_service=None,
+            proposal_id=proposal_id_2
+        )
+        
+        # Verify draft is STILL unchanged after second proposal
+        print(f"[DEBUG] Verifying draft is STILL unchanged after second proposal")
+        await assert_draft_content_unchanged(
+            workflow_id=workflow_id,
+            baseline_content=original_content,
+            user_id=user_id
+        )
+        
+        # Reject second proposal through production API
+        print(f"[DEBUG] Rejecting second proposal")
+        await test_client.post(
+            f"/api/refinements/{proposal_id_2}/reject",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        
+        # Final verification: draft content is completely unchanged
+        print(f"[DEBUG] Final verification: draft content is completely unchanged")
+        await assert_draft_content_unchanged(
+            workflow_id=workflow_id,
+            baseline_content=original_content,
+            user_id=user_id
+        )
+        
+        # Verify both proposals are resolved as rejected through production service
+        print(f"[DEBUG] Verifying both proposals are resolved as rejected")
+        await assert_proposal_state(
+            proposal_id=proposal_id_1,
+            expected_status="resolved",
+            expected_resolution="rejected"
+        )
+        
+        await assert_proposal_state(
+            proposal_id=proposal_id_2,
+            expected_status="resolved",
+            expected_resolution="rejected"
+        )
+        print(f"[DEBUG] Data isolation test completed successfully!")
+        
+    finally:
+        await mock_server.stop()

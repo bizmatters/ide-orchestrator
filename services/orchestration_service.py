@@ -59,6 +59,11 @@ class OrchestrationService:
         """
         Create a refinement proposal and initiate deepagents-runtime processing.
         
+        This follows the spec by:
+        1. Creating a proposal in the database
+        2. Calling deepagents-runtime /invoke to get a thread_id
+        3. Letting the WebSocket proxy handle streaming and proposal updates
+        
         Args:
             draft_id: Draft ID
             user_id: User ID
@@ -75,9 +80,8 @@ class OrchestrationService:
         # Validate draft access
         draft_info = self.draft_service.validate_draft_access(draft_id, user_id)
         
-        # Generate IDs
-        proposal_id = f"proposal-{asyncio.get_event_loop().time()}"
-        thread_id = f"refinement-{proposal_id}"
+        # Generate proposal ID
+        proposal_id = f"proposal-{int(asyncio.get_event_loop().time() * 1000000)}"
         
         # Record metrics for job creation
         metrics.record_job_created("refinement", "created")
@@ -87,61 +91,56 @@ class OrchestrationService:
             user_id, user_prompt, context_file_path, context_selection
         )
         
-        # Create proposal in database
-        proposal_id = self.proposal_service.create_proposal(
-            draft_id, thread_id, user_id, user_prompt, audit_trail,
-            context_file_path, context_selection
-        )
+        # Get current specification from draft (empty for now)
+        current_specification = {}
         
-        # Start async processing with deepagents-runtime
-        asyncio.create_task(self._process_refinement_async(
-            proposal_id, thread_id, user_prompt, {},  # Empty specification for now
-            context_file_path, context_selection
-        ))
+        # Prepare payload for deepagents-runtime
+        payload = {
+            "job_id": f"refinement-{proposal_id}",
+            "trace_id": f"trace-{proposal_id}",
+            "agent_definition": current_specification,
+            "input_payload": {
+                "instructions": user_prompt,
+                "context": context_selection or "",
+                "context_file_path": context_file_path
+            }
+        }
         
-        return proposal_id, thread_id
-    
-    async def _process_refinement_async(
-        self,
-        proposal_id: str,
-        thread_id: str,
-        user_prompt: str,
-        current_specification: Dict[str, Any],
-        context_file_path: Optional[str] = None,
-        context_selection: Optional[str] = None
-    ):
-        """
-        Async processing of refinement with deepagents-runtime using circuit breaker.
-        
-        This method runs in the background to call deepagents-runtime
-        and update the proposal with results.
-        """
-        with tracer.start_as_current_span("process_refinement_async") as span:
-            span.set_attributes({
-                "proposal_id": proposal_id,
-                "thread_id": thread_id,
-                "user_prompt": user_prompt[:100] + "..." if len(user_prompt) > 100 else user_prompt
-            })
+        try:
+            # Call deepagents-runtime /invoke to get thread_id
+            invoke_result = await self.deepagents_client.invoke_job(payload)
+            thread_id = invoke_result.get("thread_id")
             
-            # Use metrics context manager for timing
-            with metrics.time_refinement():
-                try:
-                    # Process refinement job through deepagents client
-                    state_data = await self.deepagents_client.process_refinement_job(
-                        proposal_id, thread_id, user_prompt, current_specification,
-                        context_file_path, context_selection
-                    )
-                    
-                    # Update proposal with results
-                    await self._update_proposal_results(
-                        proposal_id, "completed", 
-                        state_data.get("result"),
-                        state_data.get("generated_files", {})
-                    )
-                    
-                except Exception as e:
-                    span.record_exception(e)
-                    await self._update_proposal_results(proposal_id, "failed", str(e), {})
+            if not thread_id:
+                raise ValueError("deepagents-runtime did not return thread_id")
+            
+            # Create proposal in database with the thread_id from deepagents-runtime
+            proposal_id = self.proposal_service.create_proposal(
+                draft_id, thread_id, user_id, user_prompt, audit_trail,
+                context_file_path, context_selection
+            )
+            
+            # According to the spec, we only call /invoke and let the WebSocket proxy
+            # handle streaming when the frontend connects to /api/ws/refinements/{thread_id}
+            # The WebSocket proxy will update the proposal when it receives 'end' events
+            
+            return proposal_id, thread_id
+            
+        except Exception as e:
+            # If deepagents-runtime is unavailable, create proposal in failed state
+            thread_id = f"failed-{proposal_id}"
+            proposal_id = self.proposal_service.create_proposal(
+                draft_id, thread_id, user_id, user_prompt, audit_trail,
+                context_file_path, context_selection
+            )
+            
+            # Update to failed status immediately
+            await self._update_proposal_results(proposal_id, "failed", str(e), {})
+            
+            raise ValueError(f"deepagents-runtime unavailable: {str(e)}")
+    
+    # Remove the old async processing method since WebSocket proxy handles it
+    # async def _process_refinement_async(...) - REMOVED
     
     async def _update_proposal_results(
         self,

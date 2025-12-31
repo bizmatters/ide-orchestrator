@@ -11,6 +11,7 @@ Tests the complete refinement approval flow with emphasis on:
 """
 
 import pytest
+import asyncio
 from httpx import AsyncClient
 
 from .shared.fixtures import (
@@ -71,12 +72,12 @@ async def test_refinement_approved_lifecycle(
     # Step 2: Setup cleanup tracking to verify Requirement 4.5
     print(f"[DEBUG] Setting up cleanup tracking for test")
     with setup_cleanup_tracking():
-        # Step 3: Trigger refinement request using shared mock helper
-        print(f"[DEBUG] Creating mock client for approved test")
-        mock_client = create_mock_deepagents_client("approved")
+        # Step 3: Trigger refinement request using real client (no mocking)
+        print(f"[DEBUG] Using real DeepAgents client for approved test")
+        mock_client = create_mock_deepagents_client("approved")  # Returns None
         
-        print(f"[DEBUG] Patching deepagents client and making refinement request")
-        with patch_deepagents_client(mock_client):
+        print(f"[DEBUG] Making refinement request with real client")
+        with patch_deepagents_client(mock_client):  # No-op context manager
             response = await test_client.post(
                 f"/api/workflows/{workflow_id}/refinements",
                 json=sample_refinement_request_approved,
@@ -164,6 +165,9 @@ async def test_refinement_approved_lifecycle(
         
         # Step 11: Verify runtime cleanup was called (Requirement 4.5)
         print(f"[DEBUG] Verifying runtime cleanup was called for thread_id: {thread_id}")
+        # Wait a bit for the async cleanup task to complete
+        print(f"[DEBUG] Waiting for async cleanup task to complete...")
+        await asyncio.sleep(0.5)  # Give the background task time to run
         assert_runtime_cleanup_called(thread_id)
         print(f"[DEBUG] Test completed successfully!")
 
@@ -194,9 +198,11 @@ async def test_refinement_approved_state_transitions(
     )
     
     # Trigger refinement
-    mock_client = create_mock_deepagents_client("state_test")
+    print(f"[DEBUG] Using real DeepAgents client for state transition test")
+    mock_client = create_mock_deepagents_client("state_test")  # Returns None
     
-    with patch_deepagents_client(mock_client):
+    print(f"[DEBUG] Making refinement request with real client for state test")
+    with patch_deepagents_client(mock_client):  # No-op context manager
         response = await test_client.post(
             f"/api/workflows/{workflow_id}/refinements",
             json=sample_refinement_request_approved,

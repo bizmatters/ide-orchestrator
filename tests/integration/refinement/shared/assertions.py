@@ -207,6 +207,10 @@ def assert_runtime_cleanup_called(thread_id: str):
     """
     cleanup_tracker = get_cleanup_tracker()
     
+    print(f"[DEBUG] Checking cleanup tracker for thread_id: {thread_id}")
+    print(f"[DEBUG] All cleanup calls: {cleanup_tracker.cleanup_calls}")
+    print(f"[DEBUG] was_cleanup_called result: {cleanup_tracker.was_cleanup_called(thread_id)}")
+    
     assert cleanup_tracker.was_cleanup_called(thread_id), \
         f"Runtime cleanup was not called for thread_id: {thread_id}"
     

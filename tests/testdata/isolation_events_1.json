@@ -1,0 +1,87 @@
+[
+  {
+    "event_type": "on_state_update",
+    "data": {
+      "messages": "[HumanMessage(content='Create a REST API server with health check endpoints', additional_kwargs={}, response_metadata={}, id='isolation-test-001')]"
+    }
+  },
+  {
+    "event_type": "on_llm_stream",
+    "data": {
+      "raw_event": "(AIMessageChunk(content='', additional_kwargs={}, response_metadata={'model_provider': 'openai'}, id='lc_run--isolation-001', tool_calls=[{'name': 'write_file', 'args': {}, 'id': 'call_isolation_001', 'type': 'tool_call'}]), {'thread_id': 'test-job-isolation-001', 'langgraph_step': 3, 'langgraph_node': 'model'})"
+    }
+  },
+  {
+    "event_type": "on_state_update",
+    "data": {
+      "messages": "[HumanMessage(content='Create a REST API server with health check endpoints', additional_kwargs={}, response_metadata={}, id='isolation-test-001')]",
+      "files": {
+        "/api_server.py": {
+          "content": [
+            "from flask import Flask, jsonify",
+            "import datetime",
+            "",
+            "app = Flask(__name__)",
+            "",
+            "@app.route('/health')",
+            "def health_check():",
+            "    return jsonify({",
+            "        'status': 'healthy',",
+            "        'timestamp': datetime.datetime.utcnow().isoformat(),",
+            "        'service': 'api-server'",
+            "    })",
+            "",
+            "@app.route('/ready')",
+            "def readiness_check():",
+            "    return jsonify({",
+            "        'status': 'ready',",
+            "        'timestamp': datetime.datetime.utcnow().isoformat()",
+            "    })",
+            "",
+            "@app.route('/api/v1/status')",
+            "def api_status():",
+            "    return jsonify({",
+            "        'version': '1.0.0',",
+            "        'api_status': 'operational'",
+            "    })",
+            "",
+            "if __name__ == '__main__':",
+            "    app.run(host='0.0.0.0', port=8080, debug=False)"
+          ],
+          "created_at": "2025-12-18T11:00:00.000000+00:00",
+          "modified_at": "2025-12-18T11:00:00.000000+00:00"
+        },
+        "/requirements.txt": {
+          "content": [
+            "Flask==2.3.3",
+            "Werkzeug==2.3.7"
+          ],
+          "created_at": "2025-12-18T11:00:05.000000+00:00",
+          "modified_at": "2025-12-18T11:00:05.000000+00:00"
+        },
+        "/Dockerfile": {
+          "content": [
+            "FROM python:3.11-slim",
+            "",
+            "WORKDIR /app",
+            "",
+            "COPY requirements.txt .",
+            "RUN pip install --no-cache-dir -r requirements.txt",
+            "",
+            "COPY api_server.py .",
+            "",
+            "EXPOSE 8080",
+            "",
+            "CMD [\"python\", \"api_server.py\"]"
+          ],
+          "created_at": "2025-12-18T11:00:10.000000+00:00",
+          "modified_at": "2025-12-18T11:00:10.000000+00:00"
+        }
+      }
+    }
+  },
+  {
+    "event_type": "end",
+    "data": {}
+  }
+]

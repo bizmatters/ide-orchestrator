@@ -30,13 +30,18 @@ class RefinementTestContext(NamedTuple):
 
 
 @pytest.fixture
-async def refinement_test_context(jwt_manager: JWTManager) -> RefinementTestContext:
+async def refinement_test_context(jwt_manager: JWTManager, mock_deepagents_server) -> RefinementTestContext:
     """
     Complete test context with user, services, and token.
     
     Creates a test user and initializes all production services
     using the same dependency injection as production code.
     """
+    # Set the mock deepagents server URL for this test
+    import os
+    os.environ["DEEPAGENTS_RUNTIME_URL"] = mock_deepagents_server
+    print(f"[DEBUG] Set DEEPAGENTS_RUNTIME_URL to: {mock_deepagents_server}")
+    
     # Use production dependency injection
     database_url = get_database_url()
     workflow_service = WorkflowService(database_url)

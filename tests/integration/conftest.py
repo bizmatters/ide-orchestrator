@@ -68,10 +68,7 @@ async def mock_deepagents_server():
     mock_server = create_mock_deepagents_server("approved")
     await mock_server.start()
     
-    # Return the URL that was set in environment variable
-    mock_url = f"http://127.0.0.1:{mock_server.http_port}"
-    
-    yield mock_url
+    yield f"http://127.0.0.1:{mock_server.http_port}"
     
     # Cleanup
     await mock_server.stop()

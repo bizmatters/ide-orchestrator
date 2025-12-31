@@ -64,7 +64,7 @@ async def test_refinement_rejected_lifecycle(
     user_id, token = test_user_token
     
     # Setup mock server for deepagents-runtime (external dependency)
-    mock_server = create_mock_deepagents_server("rejected")
+    mock_server = create_mock_deepagents_server("rejected", http_port=8000, ws_port=8001)
     await mock_server.start()
     
     try:
@@ -213,7 +213,7 @@ async def test_refinement_rejected_data_isolation(
     user_id, token = test_user_token
     
     # Setup mock server for deepagents-runtime (external dependency)
-    mock_server = create_mock_deepagents_server("rejected")
+    mock_server = create_mock_deepagents_server("rejected", http_port=8002, ws_port=8003)
     await mock_server.start()
     
     try:

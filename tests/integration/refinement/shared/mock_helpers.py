@@ -9,25 +9,32 @@ import time
 import json
 import asyncio
 import os
+import threading
 from typing import Dict, Any, List, Optional
 from pathlib import Path
-from aiohttp import web, WSMsgType
-import aiohttp
+from aiohttp import web
+import websockets
 
 
 class DeepAgentsMockServer:
     """
     In-process HTTP and WebSocket mock server for deepagents-runtime endpoints only.
     
-    This follows the integration testing pattern by mocking only the external
-    deepagents-runtime HTTP and WebSocket endpoints. The production WebSocket proxy in
-    ide-orchestrator will connect to this mock server.
+    Uses websockets library for WebSocket server to match production client.
+    Uses aiohttp for HTTP endpoints.
+    
+    WebSocket server runs in a separate thread to avoid event loop blocking
+    when TestClient makes synchronous WebSocket connections.
     """
     
-    def __init__(self, scenario: str = "approved"):
+    def __init__(self, scenario: str = "approved", http_port: int = 8000, ws_port: int = 8001):
         self.scenario = scenario
-        self.server = None
-        self.port = None
+        self.http_server = None
+        self.ws_server = None
+        self.ws_thread = None
+        self.ws_loop = None
+        self.http_port = http_port
+        self.ws_port = ws_port
         self.test_data = {}
         self.thread_states = {}
         self._load_test_data()
@@ -48,145 +55,160 @@ class DeepAgentsMockServer:
                 with open(state_path, 'r') as f:
                     self.test_data = json.load(f)
     
-    async def start(self):
-        """Start the combined HTTP and WebSocket mock server."""
-        app = web.Application()
+    def _run_ws_server(self):
+        """Run WebSocket server in separate thread with its own event loop."""
+        self.ws_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.ws_loop)
         
-        # Add HTTP routes
+        async def start_ws():
+            self.ws_server = await websockets.serve(
+                self._handle_websocket,
+                '0.0.0.0',
+                self.ws_port
+            )
+            print(f"[DEBUG] WebSocket server started on port {self.ws_port} (separate thread)")
+            await self.ws_server.wait_closed()
+        
+        self.ws_loop.run_until_complete(start_ws())
+    
+    async def start(self):
+        """Start HTTP server on 8000 and WebSocket server on 8001 (in separate thread)."""
+        # HTTP server for /invoke endpoint
+        app = web.Application()
         app.router.add_post('/invoke', self._handle_invoke)
         app.router.add_get('/state/{thread_id}', self._handle_state)
-        app.router.add_get('/stream/{thread_id}', self._handle_websocket)
         
-        # Start server on random port, bind to all interfaces for cluster access
         runner = web.AppRunner(app)
         await runner.setup()
-        
-        site = web.TCPSite(runner, '0.0.0.0', 0)
+        site = web.TCPSite(runner, '0.0.0.0', self.http_port)
         await site.start()
+        self.http_server = runner
         
-        # Get the actual port
-        self.port = site._server.sockets[0].getsockname()[1]
-        self.server = runner
+        # Start WebSocket server in separate thread to avoid event loop blocking
+        self.ws_thread = threading.Thread(target=self._run_ws_server, daemon=True)
+        self.ws_thread.start()
         
-        print(f"[DEBUG] Mock deepagents-runtime server started on port: {self.port}")
+        # Wait for WebSocket server to be ready
+        await asyncio.sleep(0.5)
         
-        # Set environment variable for WebSocket proxy to use mock
-        # Since app runs in-process with test (ASGITransport), use localhost
-        mock_url = f"http://127.0.0.1:{self.port}"
+        # Set environment variables so production code uses this mock
+        mock_url = f"http://127.0.0.1:{self.http_port}"
+        mock_ws_url = f"ws://127.0.0.1:{self.ws_port}"
         os.environ["DEEPAGENTS_RUNTIME_URL"] = mock_url
-        print(f"[DEBUG] Set DEEPAGENTS_RUNTIME_URL to: {mock_url}")
+        os.environ["DEEPAGENTS_RUNTIME_WS_URL"] = mock_ws_url
+        
+        print(f"[DEBUG] Mock deepagents-runtime server started")
+        print(f"[DEBUG] HTTP on port {self.http_port}, WebSocket on port {self.ws_port}")
+        print(f"[DEBUG] Set DEEPAGENTS_RUNTIME_URL to {mock_url}")
+        print(f"[DEBUG] Set DEEPAGENTS_RUNTIME_WS_URL to {mock_ws_url}")
     
     async def _handle_invoke(self, request):
         """Handle POST /invoke requests."""
         thread_id = f"test-thread-{int(time.time() * 1000000)}"
-        self.thread_states[thread_id] = {
-            "status": "running",
-            "generated_files": {}
-        }
-        
+        self.thread_states[thread_id] = {"status": "running", "generated_files": {}}
         print(f"[DEBUG] Mock invoke handler called, created thread_id: {thread_id}")
-        
         return web.json_response({"thread_id": thread_id})
     
     async def _handle_state(self, request):
         """Handle GET /state/{thread_id} requests."""
         thread_id = request.match_info['thread_id']
-        
-        print(f"[DEBUG] Mock state handler called for thread_id: {thread_id}")
-        
         if thread_id in self.thread_states:
-            state = self.thread_states[thread_id]
-            print(f"[DEBUG] Returning state for {thread_id}: {state['status']}")
-            return web.json_response(state)
-        else:
-            print(f"[DEBUG] Thread {thread_id} not found in states")
-            return web.json_response({"error": "Not found"}, status=404)
+            return web.json_response(self.thread_states[thread_id])
+        return web.json_response({"error": "Not found"}, status=404)
     
-    async def _handle_websocket(self, request):
-        """Handle WebSocket upgrade requests from production proxy."""
-        thread_id = request.match_info['thread_id']
-        print(f"[DEBUG] WebSocket connection received for thread_id: {thread_id}")
-        
-        ws = web.WebSocketResponse()
-        await ws.prepare(request)
+    async def _handle_websocket(self, websocket):
+        """Handle WebSocket connections using websockets library."""
+        path = websocket.request.path
+        thread_id = path.split('/')[-1]
+        print(f"[DEBUG] ===== WebSocket connected =====")
+        print(f"[DEBUG] Thread ID: {thread_id}")
+        print(f"[DEBUG] Path: {path}")
         
         try:
-            # Send streaming events to simulate deepagents-runtime behavior
-            await self._send_streaming_events(ws, thread_id)
+            await self._send_streaming_events(websocket, thread_id)
         except Exception as e:
-            print(f"[DEBUG] WebSocket error for thread {thread_id}: {e}")
-        finally:
-            await ws.close()
-        
-        return ws
+            print(f"[DEBUG] WebSocket error: {e}")
+            import traceback
+            print(f"[DEBUG] {traceback.format_exc()}")
+            print(f"[DEBUG] {traceback.format_exc()}")
     
     async def _send_streaming_events(self, ws, thread_id: str):
-        """Send streaming events that match deepagents-runtime format."""
-        print(f"[DEBUG] Starting streaming events for thread_id: {thread_id}")
+        """Send streaming events."""
+        print(f"[DEBUG] Starting streaming events for: {thread_id}")
         
-        # Send initial state update
-        await ws.send_str(json.dumps({
+        # Event 1: Initial state
+        await ws.send(json.dumps({
             "event_type": "on_state_update",
-            "data": {
-                "messages": "Starting processing...",
-                "files": {}
-            }
+            "data": {"messages": "Starting processing...", "files": {}}
         }))
+        print(f"[DEBUG] Event 1 sent")
         
-        # Simulate processing time
-        await asyncio.sleep(1)
+        await asyncio.sleep(0.5)
         
-        # Send progress update
-        await ws.send_str(json.dumps({
+        # Event 2: Progress
+        await ws.send(json.dumps({
             "event_type": "on_llm_stream",
-            "data": {
-                "messages": "Processing refinement request..."
-            }
+            "data": {"messages": "Processing..."}
         }))
+        print(f"[DEBUG] Event 2 sent")
         
-        # Simulate more processing time
-        await asyncio.sleep(1)
+        await asyncio.sleep(0.5)
         
-        # Send final state update with generated files
+        # Event 3: Final state with files
         generated_files = self.test_data.get("generated_files", {})
-        await ws.send_str(json.dumps({
+        await ws.send(json.dumps({
             "event_type": "on_state_update",
-            "data": {
-                "messages": "Processing complete",
-                "files": generated_files
-            }
+            "data": {"messages": "Complete", "files": generated_files}
         }))
+        print(f"[DEBUG] Event 3 sent")
         
-        # Send end event to signal completion
-        await ws.send_str(json.dumps({
-            "event_type": "end",
-            "data": {}
-        }))
+        # Event 4: End
+        await ws.send(json.dumps({"event_type": "end", "data": {}}))
+        print(f"[DEBUG] End event sent")
         
-        print(f"[DEBUG] Completed streaming events for thread_id: {thread_id}")
-        
-        # Update thread state for HTTP state endpoint
         self.thread_states[thread_id] = {
             "status": "completed",
-            "generated_files": generated_files,
-            "result": "Processing completed successfully"
+            "generated_files": generated_files
         }
     
     async def stop(self):
-        """Stop the server and cleanup."""
-        if self.server:
-            await self.server.cleanup()
-            print(f"[DEBUG] Mock server stopped")
+        """Stop servers."""
+        print(f"[DEBUG] Stopping mock deepagents-runtime server...")
         
-        # Clean up environment variable
+        # Stop WebSocket server properly
+        if self.ws_server and self.ws_loop:
+            print(f"[DEBUG] Closing WebSocket server...")
+            # Close the WebSocket server
+            self.ws_loop.call_soon_threadsafe(self.ws_server.close)
+            
+            # Wait for the server to close
+            if self.ws_thread and self.ws_thread.is_alive():
+                print(f"[DEBUG] Waiting for WebSocket server to close...")
+                # Give more time for proper cleanup
+                import time
+                time.sleep(1.0)
+                
+                # If thread is still alive, try to stop the loop
+                if self.ws_thread.is_alive():
+                    print(f"[DEBUG] Stopping WebSocket event loop...")
+                    self.ws_loop.call_soon_threadsafe(self.ws_loop.stop)
+                    time.sleep(0.5)
+        
+        # Stop HTTP server
+        if self.http_server:
+            print(f"[DEBUG] Cleaning up HTTP server...")
+            await self.http_server.cleanup()
+        
+        # Clean up environment variables
         if "DEEPAGENTS_RUNTIME_URL" in os.environ:
             del os.environ["DEEPAGENTS_RUNTIME_URL"]
-            print(f"[DEBUG] Cleaned up DEEPAGENTS_RUNTIME_URL environment variable")
-        
-        print(f"[DEBUG] Mock deepagents-runtime stopped")
+        if "DEEPAGENTS_RUNTIME_WS_URL" in os.environ:
+            del os.environ["DEEPAGENTS_RUNTIME_WS_URL"]
+            
+        print(f"[DEBUG] Mock deepagents-runtime stopped completely")
 
 
-def create_mock_deepagents_server(scenario: str = "approved") -> DeepAgentsMockServer:
+def create_mock_deepagents_server(scenario: str = "approved", http_port: int = 8000, ws_port: int = 8001) -> DeepAgentsMockServer:
     """
     Create in-process HTTP and WebSocket mock server for deepagents-runtime.
     
@@ -196,12 +218,14 @@ def create_mock_deepagents_server(scenario: str = "approved") -> DeepAgentsMockS
     
     Args:
         scenario: Test scenario to load data for
+        http_port: Port for HTTP server (default 8000)
+        ws_port: Port for WebSocket server (default 8001)
         
     Returns:
         DeepAgentsMockServer instance
     """
-    print(f"[DEBUG] Creating mock deepagents server for scenario: {scenario}")
-    return DeepAgentsMockServer(scenario)
+    print(f"[DEBUG] Creating mock deepagents server for scenario: {scenario} on ports {http_port}/{ws_port}")
+    return DeepAgentsMockServer(scenario, http_port, ws_port)
 
 
 async def wait_for_proposal_completion_via_orchestration(

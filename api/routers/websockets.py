@@ -106,13 +106,16 @@ async def stream_refinement(
             return
         
         # Connect to deepagents-runtime WebSocket using environment variable
-        deepagents_base_url = os.getenv("DEEPAGENTS_RUNTIME_URL", "http://deepagents-runtime:8000")
-        # Convert HTTP URL to WebSocket URL
-        ws_base_url = deepagents_base_url.replace("http://", "ws://").replace("https://", "wss://")
+        # Use separate WS URL if provided, otherwise derive from HTTP URL
+        deepagents_ws_url = os.getenv("DEEPAGENTS_RUNTIME_WS_URL")
+        if not deepagents_ws_url:
+            deepagents_base_url = os.getenv("DEEPAGENTS_RUNTIME_URL", "http://deepagents-runtime:8000")
+            # Convert HTTP URL to WebSocket URL
+            deepagents_ws_url = deepagents_base_url.replace("http://", "ws://").replace("https://", "wss://")
         
         try:
             # Connect to deepagents WebSocket endpoint
-            ws_url = f"{ws_base_url}/stream/{thread_id}"
+            ws_url = f"{deepagents_ws_url}/stream/{thread_id}"
             logger.info(f"Attempting WebSocket connection to: {ws_url}")
             
             async with websockets.connect(ws_url) as deepagents_ws:

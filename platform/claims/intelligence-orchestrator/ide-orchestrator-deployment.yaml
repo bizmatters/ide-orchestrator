@@ -24,4 +24,3 @@ spec:
   # Secrets with standard environment variable names (envFrom)
   secret1Name: ide-orchestrator-db-conn      # POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
   secret2Name: ide-orchestrator-jwt-keys     # JWT_SECRET_KEY, JWT_ALGORITHM
-  secret3Name: ide-orchestrator-app-secrets  # Additional application secrets

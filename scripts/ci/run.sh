@@ -57,17 +57,17 @@ if [[ -n "${POSTGRES_HOST:-}" ]]; then
 fi
 
 # Validate required environment variables
-if [ -z "${POSTGRES_HOST}" ]; then
+if [ -z "${POSTGRES_HOST:-}" ]; then
     echo "❌ ERROR: POSTGRES_HOST environment variable is required"
     exit 1
 fi
 
-if [ -z "${POSTGRES_PASSWORD}" ]; then
+if [ -z "${POSTGRES_PASSWORD:-}" ]; then
     echo "❌ ERROR: POSTGRES_PASSWORD environment variable is required"
     exit 1
 fi
 
-if [ -z "${JWT_SECRET}" ]; then
+if [ -z "${JWT_SECRET:-}" ]; then
     echo "❌ ERROR: JWT_SECRET environment variable is required"
     exit 1
 fi

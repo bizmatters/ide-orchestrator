@@ -17,7 +17,8 @@ jobs:
     uses: arun4infra/zerotouch-platform/.github/workflows/ci-build.yml@main
     with:
       service_name: ide-orchestrator
-    secrets: inherit
+    secrets:
+      BOT_GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
 
   # STAGE 2: Parallel tests using same artifact
   test-auth:
@@ -154,4 +155,9 @@ jobs:
     with:
       service_name: ide-orchestrator
       image_tag: ${{ needs.build.outputs.image_tag }}
-    secrets: inherit
+    secrets:
+      BOT_GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
+      BOT_GITHUB_USERNAME: ${{ secrets.BOT_GITHUB_USERNAME }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}

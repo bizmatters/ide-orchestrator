@@ -1,3 +1,7 @@
+## Testing command
+export CLEANUP_CLUSTER=false && export $(grep -v '^#' .env | grep -v '^$' | xargs) && ./scripts/ci/
+in-cluster-test.sh
+
 ## Cluster commands for debugging
 kubectl get pods -n intelligence-orchestrator
 kubectl logs -n intelligence-orchestrator deployment/ide-orchestrator --tail=20

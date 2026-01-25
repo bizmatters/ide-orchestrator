@@ -14,18 +14,10 @@ security = HTTPBearer()
 
 def get_database_url():
     """Get database URL from environment."""
-    # Check for explicit DATABASE_URL first
-    if database_url := os.getenv("DATABASE_URL"):
-        return database_url
-    
-    # Build from individual environment variables
-    host = os.getenv("POSTGRES_HOST", "ide-orchestrator-db-rw.intelligence-orchestrator.svc")
-    port = os.getenv("POSTGRES_PORT", "5432")
-    user = os.getenv("POSTGRES_USER", "postgres")
-    password = os.getenv("POSTGRES_PASSWORD", "postgres")
-    dbname = os.getenv("POSTGRES_DB", "ide_orchestrator")
-    
-    return f"postgresql://{user}:{password}@{host}:{port}/{dbname}?sslmode=prefer"
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        raise ValueError("DATABASE_URL environment variable is required")
+    return database_url
 
 
 def get_jwt_manager():

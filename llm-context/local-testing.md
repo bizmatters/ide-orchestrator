@@ -14,7 +14,7 @@ AWS_ROLE_ARN=arn:aws:iam::337832075585:role/eso_gitHub_actions_access
 NODE_ENV=local
 
 ### PG DG
-DATABASE_URL=postgresql://neondb_owner:npg_xhb7deHlum2n@ep-square-base-ah3e7r3r-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+DATABASE_URL=
 
 # Cache Configuration (will be overridden by platform)
 NATS_URL=nats://localhost:14222

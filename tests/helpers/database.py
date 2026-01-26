@@ -14,14 +14,8 @@ import bcrypt
 
 
 def build_database_url() -> str:
-    """Construct database URL from environment variables."""
-    host = os.getenv("POSTGRES_HOST", "ide-orchestrator-db-rw.intelligence-orchestrator.svc")
-    port = os.getenv("POSTGRES_PORT", "5432")
-    user = os.getenv("POSTGRES_USER", "postgres")
-    password = os.getenv("POSTGRES_PASSWORD", "postgres")
-    dbname = os.getenv("POSTGRES_DB", "ide_orchestrator")
-    
-    return f"postgresql://{user}:{password}@{host}:{port}/{dbname}?sslmode=prefer"
+    """Use DATABASE_URL from environment variables."""
+    return os.getenv("DATABASE_URL")
 
 
 class TestDatabase:

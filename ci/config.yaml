@@ -26,7 +26,6 @@ dependencies:
   # Only declare optional services that your service actually uses
   platform: 
     - apis
-    - databases
   
   # External services (deployed before this service)
   external:

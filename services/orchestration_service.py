@@ -24,7 +24,7 @@ class OrchestrationService:
     
     def __init__(self, database_url: str):
         self.database_url = database_url
-        deepagents_url = os.getenv("DEEPAGENTS_RUNTIME_URL", "http://deepagents-runtime:8000")
+        deepagents_url = os.getenv("DEEPAGENTS_RUNTIME_URL", "http://deepagents-runtime.intelligence-deepagents.svc.cluster.local:8000")
         
         # Initialize service dependencies
         self.deepagents_client = DeepAgentsRuntimeClient(deepagents_url)

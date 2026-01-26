@@ -147,29 +147,50 @@ jobs:
       IDEO_JWT_SECRET: ${{ secrets.JWT_SECRET }}
       IDEO_SPEC_ENGINE_URL: ${{ secrets.SPEC_ENGINE_URL }}
 
+  # Prepare secret blobs for each environment
+  prepare-secrets:
+    runs-on: ubuntu-latest
+    outputs:
+      dev_blob: ${{ steps.dev.outputs.blob }}
+      staging_blob: ${{ steps.staging.outputs.blob }}
+      prod_blob: ${{ steps.prod.outputs.blob }}
+    steps:
+      - id: dev
+        run: |
+          delimiter="$(openssl rand -hex 8)"
+          echo "blob<<$delimiter" >> $GITHUB_OUTPUT
+          echo "IDEO_DATABASE_URL=${{ secrets.DEV_IDEO_DATABASE_URL }}" >> $GITHUB_OUTPUT
+          echo "IDEO_JWT_SECRET=${{ secrets.DEV_IDEO_JWT_SECRET }}" >> $GITHUB_OUTPUT
+          echo "$delimiter" >> $GITHUB_OUTPUT
+      
+      - id: staging
+        run: |
+          delimiter="$(openssl rand -hex 8)"
+          echo "blob<<$delimiter" >> $GITHUB_OUTPUT
+          echo "IDEO_DATABASE_URL=${{ secrets.STAGING_IDEO_DATABASE_URL }}" >> $GITHUB_OUTPUT
+          echo "IDEO_JWT_SECRET=${{ secrets.STAGING_IDEO_JWT_SECRET }}" >> $GITHUB_OUTPUT
+          echo "$delimiter" >> $GITHUB_OUTPUT
+      
+      - id: prod
+        run: |
+          delimiter="$(openssl rand -hex 8)"
+          echo "blob<<$delimiter" >> $GITHUB_OUTPUT
+          echo "IDEO_DATABASE_URL=${{ secrets.PROD_IDEO_DATABASE_URL }}" >> $GITHUB_OUTPUT
+          echo "IDEO_JWT_SECRET=${{ secrets.PROD_IDEO_JWT_SECRET }}" >> $GITHUB_OUTPUT
+          echo "$delimiter" >> $GITHUB_OUTPUT
+
   # STAGE 3: Release (dev → staging → production)
   release:
-    needs: [build, test-auth, test-auth-db, test-auth-jwt, test-workflow, test-integration, test-refinement-lifecycle-approved, test-refinement-lifecycle-rejected]
+    needs: [build, test-auth, test-auth-db, test-auth-jwt, test-workflow, test-integration, test-refinement-lifecycle-approved, test-refinement-lifecycle-rejected, prepare-secrets]
     if: github.ref == 'refs/heads/main'
     uses: arun4infra/zerotouch-platform/.github/workflows/release-pipeline.yml@main
     with:
       service_name: ide-orchestrator
       image_tag: ${{ needs.build.outputs.image_tag }}
-      dev_secrets: |
-        IDEO_DATABASE_URL=${{ secrets.DEV_IDEO_DATABASE_URL }}
-        IDEO_JWT_SECRET=${{ secrets.DEV_IDEO_JWT_SECRET }}
-        IDEO_SPEC_ENGINE_URL=${{ secrets.DEV_IDEO_SPEC_ENGINE_URL }}
-      staging_secrets: |
-        IDEO_DATABASE_URL=${{ secrets.STAGING_IDEO_DATABASE_URL }}
-        IDEO_JWT_SECRET=${{ secrets.STAGING_IDEO_JWT_SECRET }}
-        IDEO_SPEC_ENGINE_URL=${{ secrets.STAGING_IDEO_SPEC_ENGINE_URL }}
-      prod_secrets: |
-        IDEO_DATABASE_URL=${{ secrets.PROD_IDEO_DATABASE_URL }}
-        IDEO_JWT_SECRET=${{ secrets.PROD_IDEO_JWT_SECRET }}
-        IDEO_SPEC_ENGINE_URL=${{ secrets.PROD_IDEO_SPEC_ENGINE_URL }}
     secrets:
       BOT_GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
       BOT_GITHUB_USERNAME: ${{ secrets.BOT_GITHUB_USERNAME }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      DEV_SECRETS_BLOB: ${{ needs.prepare-secrets.outputs.dev_blob }}
+      STAGING_SECRETS_BLOB: ${{ needs.prepare-secrets.outputs.staging_blob }}
+      PROD_SECRETS_BLOB: ${{ needs.prepare-secrets.outputs.prod_blob }}

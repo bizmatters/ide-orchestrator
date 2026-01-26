@@ -31,10 +31,10 @@ dependencies:
   # External services (deployed before this service)
   external:
     - deepagents-runtime     # Must be deployed before ide-orchestrator
-  
+    - neon-db  # Neon DB API calls
+
   # Internal services (validated after deployment)
-  internal:
-    - postgres               # Validates ide-orchestrator-db cluster
+  internal: []
 
 # Environment variables for CI testing
 env:
@@ -55,3 +55,7 @@ diagnostics:
 # Platform configuration
 platform:
   branch: "main"
+  service:
+    type: "webservices"
+    name: "ide-orchestrator"
+    k8s_service_name: "ide-orchestrator"

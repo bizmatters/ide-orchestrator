@@ -147,10 +147,33 @@ jobs:
       IDEO_JWT_SECRET: ${{ secrets.JWT_SECRET }}
       IDEO_SPEC_ENGINE_URL: ${{ secrets.SPEC_ENGINE_URL }}
 
-  # STAGE 3: Release only if ALL tests pass
-  release:
+  # STAGE 3: Sync secrets to SSM before release
+  sync-secrets:
     needs: [build, test-auth, test-auth-db, test-auth-jwt, test-workflow, test-integration, test-refinement-lifecycle-approved, test-refinement-lifecycle-rejected]
     if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Service Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ap-south-1
+
+      - name: Sync Secrets to SSM
+        env:
+          DATABASE_URL: ${{ secrets.IDEO_DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.IDEO_JWT_SECRET }}
+          SPEC_ENGINE_URL: ${{ secrets.IDEO_SPEC_ENGINE_URL }}
+        run: ./scripts/ci/sync-secrets-to-ssm.sh prod
+
+  # STAGE 4: Release only if secrets sync succeeds
+  release:
+    needs: [build, sync-secrets]
     uses: arun4infra/zerotouch-platform/.github/workflows/release-pipeline.yml@main
     with:
       service_name: ide-orchestrator

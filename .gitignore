@@ -12,3 +12,4 @@ platform
 platform-old
 platformllm-context
 llm-context
+.ci-stage-cache

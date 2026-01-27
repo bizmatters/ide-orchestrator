@@ -57,13 +57,8 @@ if [[ -n "${POSTGRES_HOST:-}" ]]; then
 fi
 
 # Validate required environment variables
-if [ -z "${POSTGRES_HOST:-}" ]; then
-    echo "❌ ERROR: POSTGRES_HOST environment variable is required"
-    exit 1
-fi
-
-if [ -z "${POSTGRES_PASSWORD:-}" ]; then
-    echo "❌ ERROR: POSTGRES_PASSWORD environment variable is required"
+if [ -z "${DATABASE_URL:-}" ]; then
+    echo "❌ ERROR: DATABASE_URL environment variable is required"
     exit 1
 fi
 

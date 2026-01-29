@@ -28,7 +28,7 @@ jobs:
           app-id: ${{ vars.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           owner: bizmatters
-          repositories: ide-orchestrator,spec-engine,zerotouch-tenants
+          repositories: ide-orchestrator,zerotouch-tenants
       
       - name: Checkout
         uses: actions/checkout@v4
@@ -68,7 +68,7 @@ jobs:
           app-id: ${{ vars.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           owner: bizmatters
-          repositories: ide-orchestrator,spec-engine,zerotouch-tenants
+          repositories: ide-orchestrator,zerotouch-tenants
       
       - name: Checkout
         uses: actions/checkout@v4
@@ -105,7 +105,7 @@ jobs:
           app-id: ${{ vars.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           owner: bizmatters
-          repositories: ide-orchestrator,spec-engine,zerotouch-tenants
+          repositories: ide-orchestrator,zerotouch-tenants
       
       - name: Checkout
         uses: actions/checkout@v4
@@ -142,7 +142,7 @@ jobs:
           app-id: ${{ vars.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           owner: bizmatters
-          repositories: ide-orchestrator,spec-engine,zerotouch-tenants
+          repositories: ide-orchestrator,zerotouch-tenants
       
       - name: Checkout
         uses: actions/checkout@v4
@@ -179,7 +179,7 @@ jobs:
           app-id: ${{ vars.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           owner: bizmatters
-          repositories: ide-orchestrator,spec-engine,zerotouch-tenants
+          repositories: ide-orchestrator,zerotouch-tenants
       
       - name: Checkout
         uses: actions/checkout@v4
@@ -216,7 +216,7 @@ jobs:
           app-id: ${{ vars.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           owner: bizmatters
-          repositories: ide-orchestrator,spec-engine,zerotouch-tenants
+          repositories: ide-orchestrator,zerotouch-tenants
       
       - name: Checkout Platform Scripts
         uses: actions/checkout@v4

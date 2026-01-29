@@ -1,10 +1,10 @@
-name: "Build Once, Validate Many, Release One"
+name: Main Pipeline
 
 on:
   push:
-    branches: [main]
+    branches: [ "main" ]
   pull_request:
-    branches: [main]
+    branches: [ "main" ]
 
 permissions:
   id-token: write      # Required for AWS OIDC authentication in ci-test.yml
@@ -12,185 +12,228 @@ permissions:
   pull-requests: write # Required for test reporting
 
 jobs:
-  # STAGE 1: Build artifact once
+  # STAGE 1: BUILD - Creates the artifact ONCE
   build:
-    uses: arun4infra/zerotouch-platform/.github/workflows/ci-build.yml@main
-    with:
-      service_name: ide-orchestrator
-    secrets:
-      BOT_GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.build.outputs.image_tag }}
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: bizmatters
+          repositories: ide-orchestrator,spec-engine,zerotouch-tenants
+      
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Build and Push
+        id: build
+        run: |
+          chmod +x ./scripts/ci/build.sh
+          ./scripts/ci/build.sh
 
-  # STAGE 2: Parallel tests using same artifact
+  # STAGE 2: VALIDATION MATRIX - Runs parallel integration tests using the artifact
   test-auth:
-    needs: build
-    uses: arun4infra/zerotouch-platform/.github/workflows/ci-test.yml@main
-    with:
-      image_tag: ${{ needs.build.outputs.image_tag }}
-      test_suite: "tests/integration/test_auth_integration.py"
-      test_name: "auth"
-      timeout: 30
-    secrets:
-      BOT_GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
-      BOT_GITHUB_USERNAME: ${{ secrets.BOT_GITHUB_USERNAME }}
-      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      TENANTS_REPO_NAME: ${{ secrets.TENANTS_REPO_NAME }}
-      IDEO_JWT_SECRET: ${{ secrets.IDEO_JWT_SECRET }}
-      IDEO_SPEC_ENGINE_URL: ${{ secrets.IDEO_SPEC_ENGINE_URL }}
+    needs: [build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      id-token: write
+      contents: read
+      packages: read
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: bizmatters
+          repositories: ide-orchestrator,spec-engine,zerotouch-tenants
+      
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Test Environment
+        uses: ./.github/actions/setup-test-env
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
+          image-tag: ${{ needs.build.outputs.image_tag }}
+          tenants-repo-name: ${{ secrets.TENANTS_REPO_NAME }}
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+        
+      - name: Run Integration Tests
+        env:
+          TEST_PATH: "tests/integration/test_auth_integration.py"
+          TEST_NAME: "auth"
+          USE_REAL_LLM: ${{ github.ref == 'refs/heads/main' }}
+        run: ./scripts/ci/in-cluster-test.sh
 
   test-auth-db:
-    needs: build
-    uses: arun4infra/zerotouch-platform/.github/workflows/ci-test.yml@main
-    with:
-      image_tag: ${{ needs.build.outputs.image_tag }}
-      test_suite: "tests/integration/test_auth_db_integration.py"
-      test_name: "auth-db"
-      timeout: 30
-    secrets:
-      BOT_GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
-      BOT_GITHUB_USERNAME: ${{ secrets.BOT_GITHUB_USERNAME }}
-      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      TENANTS_REPO_NAME: ${{ secrets.TENANTS_REPO_NAME }}
-      IDEO_JWT_SECRET: ${{ secrets.JWT_SECRET }}
-      IDEO_SPEC_ENGINE_URL: ${{ secrets.SPEC_ENGINE_URL }}
+    needs: [build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      id-token: write
+      contents: read
+      packages: read
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: bizmatters
+          repositories: ide-orchestrator,spec-engine,zerotouch-tenants
+      
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Test Environment
+        uses: ./.github/actions/setup-test-env
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
+          image-tag: ${{ needs.build.outputs.image_tag }}
+          tenants-repo-name: ${{ secrets.TENANTS_REPO_NAME }}
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+        
+      - name: Run Integration Tests
+        env:
+          TEST_PATH: "tests/integration/test_auth_db_integration.py"
+          TEST_NAME: "auth-db"
+          USE_REAL_LLM: ${{ github.ref == 'refs/heads/main' }}
+        run: ./scripts/ci/in-cluster-test.sh
 
   test-auth-jwt:
-    needs: build
-    uses: arun4infra/zerotouch-platform/.github/workflows/ci-test.yml@main
-    with:
-      image_tag: ${{ needs.build.outputs.image_tag }}
-      test_suite: "tests/integration/test_jwt_validation_integration.py"
-      test_name: "auth-jwt"
-      timeout: 30
-    secrets:
-      BOT_GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
-      BOT_GITHUB_USERNAME: ${{ secrets.BOT_GITHUB_USERNAME }}
-      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      TENANTS_REPO_NAME: ${{ secrets.TENANTS_REPO_NAME }}
-      IDEO_JWT_SECRET: ${{ secrets.JWT_SECRET }}
-      IDEO_SPEC_ENGINE_URL: ${{ secrets.SPEC_ENGINE_URL }}
+    needs: [build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      id-token: write
+      contents: read
+      packages: read
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: bizmatters
+          repositories: ide-orchestrator,spec-engine,zerotouch-tenants
+      
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Test Environment
+        uses: ./.github/actions/setup-test-env
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
+          image-tag: ${{ needs.build.outputs.image_tag }}
+          tenants-repo-name: ${{ secrets.TENANTS_REPO_NAME }}
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+        
+      - name: Run Integration Tests
+        env:
+          TEST_PATH: "tests/integration/test_jwt_validation_integration.py"
+          TEST_NAME: "auth-jwt"
+          USE_REAL_LLM: ${{ github.ref == 'refs/heads/main' }}
+        run: ./scripts/ci/in-cluster-test.sh
 
   test-workflow:
-    needs: build
-    uses: arun4infra/zerotouch-platform/.github/workflows/ci-test.yml@main
-    with:
-      image_tag: ${{ needs.build.outputs.image_tag }}
-      test_suite: "tests/integration/test_workflow_integration.py"
-      test_name: "workflow"
-      timeout: 30
-    secrets:
-      BOT_GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
-      BOT_GITHUB_USERNAME: ${{ secrets.BOT_GITHUB_USERNAME }}
-      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      TENANTS_REPO_NAME: ${{ secrets.TENANTS_REPO_NAME }}
-      IDEO_JWT_SECRET: ${{ secrets.IDEO_JWT_SECRET }}
-      IDEO_SPEC_ENGINE_URL: ${{ secrets.IDEO_SPEC_ENGINE_URL }}
-
-  test-integration:
-    needs: build
-    uses: arun4infra/zerotouch-platform/.github/workflows/ci-test.yml@main
-    with:
-      image_tag: ${{ needs.build.outputs.image_tag }}
-      test_suite: "tests/integration/test_refinement_integration.py"
-      test_name: "integration"
-      timeout: 30
-    secrets:
-      BOT_GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
-      BOT_GITHUB_USERNAME: ${{ secrets.BOT_GITHUB_USERNAME }}
-      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      TENANTS_REPO_NAME: ${{ secrets.TENANTS_REPO_NAME }}
-      IDEO_JWT_SECRET: ${{ secrets.JWT_SECRET }}
-      IDEO_SPEC_ENGINE_URL: ${{ secrets.SPEC_ENGINE_URL }}
-
-  test-refinement-lifecycle-approved:
-    needs: build
-    uses: arun4infra/zerotouch-platform/.github/workflows/ci-test.yml@main
-    with:
-      image_tag: ${{ needs.build.outputs.image_tag }}
-      test_suite: "tests/integration/refinement/test_refinement_approved.py"
-      test_name: "refinement-lifecycle-approved"
-      timeout: 30
-    secrets:
-      BOT_GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
-      BOT_GITHUB_USERNAME: ${{ secrets.BOT_GITHUB_USERNAME }}
-      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      TENANTS_REPO_NAME: ${{ secrets.TENANTS_REPO_NAME }}
-      IDEO_JWT_SECRET: ${{ secrets.JWT_SECRET }}
-      IDEO_SPEC_ENGINE_URL: ${{ secrets.SPEC_ENGINE_URL }}
-
-  test-refinement-lifecycle-rejected:
-    needs: build
-    uses: arun4infra/zerotouch-platform/.github/workflows/ci-test.yml@main
-    with:
-      image_tag: ${{ needs.build.outputs.image_tag }}
-      test_suite: "tests/integration/refinement/test_refinement_rejected.py"
-      test_name: "refinement-lifecycle-rejected"
-      timeout: 30
-    secrets:
-      BOT_GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
-      BOT_GITHUB_USERNAME: ${{ secrets.BOT_GITHUB_USERNAME }}
-      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      TENANTS_REPO_NAME: ${{ secrets.TENANTS_REPO_NAME }}
-      IDEO_JWT_SECRET: ${{ secrets.JWT_SECRET }}
-      IDEO_SPEC_ENGINE_URL: ${{ secrets.SPEC_ENGINE_URL }}
-
-  # Prepare secret blobs for each environment
-  prepare-secrets:
+    needs: [build]
     runs-on: ubuntu-latest
-    outputs:
-      dev_blob: ${{ steps.dev.outputs.blob }}
-      staging_blob: ${{ steps.staging.outputs.blob }}
-      prod_blob: ${{ steps.prod.outputs.blob }}
+    timeout-minutes: 30
+    permissions:
+      id-token: write
+      contents: read
+      packages: read
     steps:
-      - id: dev
-        run: |
-          delimiter="$(openssl rand -hex 8)"
-          echo "blob<<$delimiter" >> $GITHUB_OUTPUT
-          echo "IDEO_DATABASE_URL=${{ secrets.DEV_IDEO_DATABASE_URL }}" >> $GITHUB_OUTPUT
-          echo "IDEO_JWT_SECRET=${{ secrets.DEV_IDEO_JWT_SECRET }}" >> $GITHUB_OUTPUT
-          echo "$delimiter" >> $GITHUB_OUTPUT
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: bizmatters
+          repositories: ide-orchestrator,spec-engine,zerotouch-tenants
       
-      - id: staging
-        run: |
-          delimiter="$(openssl rand -hex 8)"
-          echo "blob<<$delimiter" >> $GITHUB_OUTPUT
-          echo "IDEO_DATABASE_URL=${{ secrets.STAGING_IDEO_DATABASE_URL }}" >> $GITHUB_OUTPUT
-          echo "IDEO_JWT_SECRET=${{ secrets.STAGING_IDEO_JWT_SECRET }}" >> $GITHUB_OUTPUT
-          echo "$delimiter" >> $GITHUB_OUTPUT
+      - name: Checkout
+        uses: actions/checkout@v4
       
-      - id: prod
-        run: |
-          delimiter="$(openssl rand -hex 8)"
-          echo "blob<<$delimiter" >> $GITHUB_OUTPUT
-          echo "IDEO_DATABASE_URL=${{ secrets.PROD_IDEO_DATABASE_URL }}" >> $GITHUB_OUTPUT
-          echo "IDEO_JWT_SECRET=${{ secrets.PROD_IDEO_JWT_SECRET }}" >> $GITHUB_OUTPUT
-          echo "$delimiter" >> $GITHUB_OUTPUT
+      - name: Setup Test Environment
+        uses: ./.github/actions/setup-test-env
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
+          image-tag: ${{ needs.build.outputs.image_tag }}
+          tenants-repo-name: ${{ secrets.TENANTS_REPO_NAME }}
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+        
+      - name: Run Integration Tests
+        env:
+          TEST_PATH: "tests/integration/test_workflow_integration.py"
+          TEST_NAME: "workflow"
+          USE_REAL_LLM: ${{ github.ref == 'refs/heads/main' }}
+        run: ./scripts/ci/in-cluster-test.sh
 
   # STAGE 3: Release (dev → staging → production)
   release:
-    needs: [build, test-auth, test-auth-db, test-auth-jwt, test-workflow, test-integration, test-refinement-lifecycle-approved, test-refinement-lifecycle-rejected, prepare-secrets]
+    needs: [build, test-auth, test-auth-db, test-auth-jwt, test-workflow]
     if: github.ref == 'refs/heads/main'
-    uses: arun4infra/zerotouch-platform/.github/workflows/release-pipeline.yml@main
-    with:
-      service_name: ide-orchestrator
-      image_tag: ${{ needs.build.outputs.image_tag }}
-    secrets:
-      BOT_GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
-      BOT_GITHUB_USERNAME: ${{ secrets.BOT_GITHUB_USERNAME }}
-      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-      DEV_SECRETS_BLOB: ${{ needs.prepare-secrets.outputs.dev_blob }}
-      STAGING_SECRETS_BLOB: ${{ needs.prepare-secrets.outputs.staging_blob }}
-      PROD_SECRETS_BLOB: ${{ needs.prepare-secrets.outputs.prod_blob }}
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: bizmatters
+          repositories: ide-orchestrator,spec-engine,zerotouch-tenants
+      
+      - name: Checkout Platform Scripts
+        uses: actions/checkout@v4
+        with:
+          repository: arun4infra/zerotouch-platform
+          ref: main
+      
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ap-south-1
+      
+      - name: Deploy to Dev
+        run: ./scripts/release/deploy-direct.sh dev
+        env:
+          SERVICE_NAME: ide-orchestrator
+          IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+          BOT_GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          TENANT_REPO_URL: https://github.com/bizmatters/zerotouch-tenants.git

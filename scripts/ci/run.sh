@@ -12,7 +12,7 @@ set -euo pipefail
 #   - PORT: HTTP server port (default: 8080)
 #   - LOG_LEVEL: Logging verbosity (default: info)
 #   - POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
-#   - IDEO_SPEC_ENGINE_URL: deepagents-runtime service URL
+#   - SPEC_ENGINE_URL: deepagents-runtime service URL
 #   - JWT_SECRET: JWT signing secret
 #
 # Assumptions:
@@ -31,7 +31,7 @@ echo "==========================================================================
 echo "  Port:                 ${PORT}"
 echo "  Log Level:            ${LOG_LEVEL}"
 echo "  Postgres Host:        ${POSTGRES_HOST:-not set}"
-echo "  Spec Engine URL:      ${SPEC_ENGINE_URL:-${IDEO_SPEC_ENGINE_URL:-not set}}"
+echo "  Spec Engine URL:      ${SPEC_ENGINE_URL:-${SPEC_ENGINE_URL:-not set}}"
 echo "================================================================================"
 
 # 1. Construct DATABASE_URL from platform-provided granular variables
@@ -69,8 +69,8 @@ fi
 
 # 2. Map platform environment variables to application variables
 # Map spec engine URL from platform naming to application naming
-if [[ -n "${IDEO_SPEC_ENGINE_URL:-}" ]]; then
-    export DEEPAGENTS_RUNTIME_URL="${IDEO_SPEC_ENGINE_URL}"
+if [[ -n "${SPEC_ENGINE_URL:-}" ]]; then
+    export DEEPAGENTS_RUNTIME_URL="${SPEC_ENGINE_URL}"
     echo "🔍 Mapped DEEPAGENTS_RUNTIME_URL to ${DEEPAGENTS_RUNTIME_URL}"
 elif [[ -n "${SPEC_ENGINE_URL:-}" ]]; then
     export DEEPAGENTS_RUNTIME_URL="${SPEC_ENGINE_URL}"

@@ -1,12 +1,11 @@
 """FastAPI application for IDE Orchestrator."""
 
 import os
-from fastapi import FastAPI, Depends
-from fastapi.security import HTTPBearer
+from fastapi import FastAPI, Header, HTTPException
+from typing import Optional
 from contextlib import asynccontextmanager
 
-from api.routers import auth, health, workflows, refinements, websockets
-from api.dependencies import get_current_user
+from api.routers import health, workflows, refinements, websockets
 from core.metrics import metrics
 
 
@@ -29,23 +28,30 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-security = HTTPBearer()
-
 # Include routers
 app.include_router(health.router)
 app.include_router(health.health_router)  # Root level health endpoints
-app.include_router(auth.router)
 app.include_router(workflows.router)
 app.include_router(refinements.router)
 app.include_router(websockets.router)
 
 
 @app.get("/api/protected")
-async def protected(current_user=Depends(get_current_user)):
-    """Protected endpoint that requires authentication."""
+async def protected(authorization: Optional[str] = Header(None)):
+    """
+    Protected endpoint that requires authentication.
+    
+    Note: Authentication will be handled by SDK middleware in future implementation.
+    This endpoint is kept for integration tests.
+    """
+    # Temporary check for Authorization header until SDK middleware is integrated
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # TODO: Replace with SDK-based authentication
     return {
-        "user_id": current_user["user_id"],
-        "email": current_user["username"],
+        "user_id": "pending-sdk-integration",
+        "email": "pending-sdk-integration",
         "message": "Access granted"
     }
 

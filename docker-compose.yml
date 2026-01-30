@@ -31,7 +31,6 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgres://postgres:bizmatters-secure-password@postgres:5432/agent_builder?sslmode=disable
-      JWT_SECRET: dev-secret-key-change-in-production
       SPEC_ENGINE_URL: http://spec-engine:8000
       PORT: 8080
 

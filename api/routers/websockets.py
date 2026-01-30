@@ -10,10 +10,9 @@ from fastapi.security import HTTPBearer
 import websockets
 import httpx
 
-from core.jwt_manager import JWTManager
 from core.metrics import metrics
 from services.orchestration_service import OrchestrationService
-from api.dependencies import get_jwt_manager, get_orchestration_service, get_database_url
+from api.dependencies import get_orchestration_service, get_database_url
 
 router = APIRouter(prefix="/api/ws", tags=["websockets"])
 logger = logging.getLogger(__name__)
@@ -30,6 +29,8 @@ async def validate_websocket_auth(
     Checks for JWT token in:
     1. Query parameter: ?token=<jwt_token> (WebSocket standard)
     2. Authorization header: Authorization: Bearer <jwt_token> (fallback)
+    
+    Note: JWT validation will be handled by SDK middleware in future implementation.
     """
     jwt_token = None
     
@@ -44,14 +45,11 @@ async def validate_websocket_auth(
         await websocket.close(code=1008, reason="Missing JWT token")
         return None
     
-    try:
-        jwt_manager = get_jwt_manager()
-        claims = await jwt_manager.validate_token(jwt_token)
-        return claims["user_id"]
-    except Exception as e:
-        logger.error(f"JWT validation failed: {e}")
-        await websocket.close(code=1008, reason="Invalid JWT token")
-        return None
+    # TODO: Replace with SDK-based JWT validation
+    # For now, this will fail until SDK middleware is integrated
+    logger.warning("JWT validation not yet implemented - SDK integration pending")
+    await websocket.close(code=1008, reason="Authentication not configured")
+    return None
 
 
 async def can_access_thread(user_id: str, thread_id: str) -> bool:

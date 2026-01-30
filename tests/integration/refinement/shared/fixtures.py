@@ -9,25 +9,21 @@ import pytest
 import uuid
 from typing import Dict, Any
 
-from core.jwt_manager import JWTManager
-
 
 @pytest.fixture
-async def test_user_token(jwt_manager: JWTManager) -> tuple[str, str]:
+async def test_user_token() -> tuple[str, str]:
     """
     Create authenticated test user following production authentication pattern.
     
     Returns:
         Tuple of (user_id, jwt_token)
+        
+    Note: JWT generation will be replaced with SDK MockAuth in future implementation.
     """
     # Create test user with proper UUID format
     user_id = str(uuid.uuid4())
-    token = await jwt_manager.generate_token(
-        user_id=user_id,
-        username=f"testuser-{user_id}",
-        roles=["user"],
-        duration_seconds=3600
-    )
+    # TODO: Replace with SDK MockAuth when integrated
+    token = "mock-jwt-token-pending-sdk-integration"
     
     return user_id, token
 

@@ -21,20 +21,17 @@ log_error() { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 main() {
     log_info "Starting database migrations for ide-orchestrator..."
     
-    # Validate required environment variables
-    required_vars=("POSTGRES_HOST" "POSTGRES_PORT" "POSTGRES_DB" "POSTGRES_USER" "POSTGRES_PASSWORD")
-    for var in "${required_vars[@]}"; do
-        if [[ -z "${!var:-}" ]]; then
-            log_error "Required environment variable not set: $var"
-            return 1
-        fi
-    done
+    # Validate required environment variable
+    if [[ -z "${DATABASE_URL:-}" ]]; then
+        log_error "Required environment variable not set: DATABASE_URL"
+        return 1
+    fi
     
-    log_info "Database connection: ${POSTGRES_USER}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}"
+    log_info "Database connection: $DATABASE_URL"
     
     # Wait for PostgreSQL to be ready
     log_info "Waiting for PostgreSQL to be ready..."
-    until pg_isready -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER"; do
+    until pg_isready -d "$DATABASE_URL"; do
         echo "PostgreSQL not ready, waiting..."
         sleep 2
     done
@@ -56,7 +53,7 @@ main() {
     for migration in "$MIGRATION_DIR"/*.up.sql; do
         if [[ -f "$migration" ]]; then
             log_info "Running migration: $(basename "$migration")"
-            PGPASSWORD="$POSTGRES_PASSWORD" psql -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f "$migration"
+            psql "$DATABASE_URL" -f "$migration"
             migration_count=$((migration_count + 1))
         fi
     done

@@ -7,7 +7,7 @@ on:
     branches: [ "main" ]
 
 permissions:
-  # AWS removed - using GitHub secrets directly
+  id-token: write      # Required for release workflow AWS deployment
   contents: read       # Required for checkout actions
   pull-requests: write # Required for test reporting
 

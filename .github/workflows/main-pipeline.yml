@@ -7,7 +7,7 @@ on:
     branches: [ "main" ]
 
 permissions:
-  id-token: write      # Required for AWS OIDC authentication in ci-test.yml
+  # AWS removed - using GitHub secrets directly
   contents: read       # Required for checkout actions
   pull-requests: write # Required for test reporting
 
@@ -57,7 +57,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      id-token: write
       contents: read
       packages: read
     steps:
@@ -77,7 +76,7 @@ jobs:
         uses: ./.github/actions/setup-test-env
         with:
           github-token: ${{ steps.app-token.outputs.token }}
-          aws-role-arn: ${{ vars.AWS_ROLE_ARN }}
+          database-url: ${{ secrets.DEV_DATABASE_URL }}
           image-tag: ${{ needs.build.outputs.image_tag }}
           tenants-repo-name: ${{ vars.TENANTS_REPO_NAME }}
         
@@ -93,7 +92,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      id-token: write
       contents: read
       packages: read
     steps:
@@ -113,7 +111,7 @@ jobs:
         uses: ./.github/actions/setup-test-env
         with:
           github-token: ${{ steps.app-token.outputs.token }}
-          aws-role-arn: ${{ vars.AWS_ROLE_ARN }}
+          database-url: ${{ secrets.DEV_DATABASE_URL }}
           image-tag: ${{ needs.build.outputs.image_tag }}
           tenants-repo-name: ${{ vars.TENANTS_REPO_NAME }}
         
@@ -129,7 +127,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      id-token: write
       contents: read
       packages: read
     steps:
@@ -149,7 +146,7 @@ jobs:
         uses: ./.github/actions/setup-test-env
         with:
           github-token: ${{ steps.app-token.outputs.token }}
-          aws-role-arn: ${{ vars.AWS_ROLE_ARN }}
+          database-url: ${{ secrets.DEV_DATABASE_URL }}
           image-tag: ${{ needs.build.outputs.image_tag }}
           tenants-repo-name: ${{ vars.TENANTS_REPO_NAME }}
         
@@ -165,7 +162,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      id-token: write
       contents: read
       packages: read
     steps:
@@ -185,7 +181,7 @@ jobs:
         uses: ./.github/actions/setup-test-env
         with:
           github-token: ${{ steps.app-token.outputs.token }}
-          aws-role-arn: ${{ vars.AWS_ROLE_ARN }}
+          database-url: ${{ secrets.DEV_DATABASE_URL }}
           image-tag: ${{ needs.build.outputs.image_tag }}
           tenants-repo-name: ${{ vars.TENANTS_REPO_NAME }}
         

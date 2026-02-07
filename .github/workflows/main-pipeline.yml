@@ -25,8 +25,8 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v1
         with:
-          app-id: ${{ vars.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          app-id: ${{ vars.GIT_APP_ID }}
+          private-key: ${{ secrets.GIT_APP_PRIVATE_KEY }}
           owner: bizmatters
           repositories: ide-orchestrator,zerotouch-tenants
       
@@ -64,8 +64,8 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v1
         with:
-          app-id: ${{ vars.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          app-id: ${{ vars.GIT_APP_ID }}
+          private-key: ${{ secrets.GIT_APP_PRIVATE_KEY }}
           owner: bizmatters
           repositories: ide-orchestrator,zerotouch-tenants
       
@@ -99,8 +99,8 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v1
         with:
-          app-id: ${{ vars.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          app-id: ${{ vars.GIT_APP_ID }}
+          private-key: ${{ secrets.GIT_APP_PRIVATE_KEY }}
           owner: bizmatters
           repositories: ide-orchestrator,zerotouch-tenants
       
@@ -134,8 +134,8 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v1
         with:
-          app-id: ${{ vars.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          app-id: ${{ vars.GIT_APP_ID }}
+          private-key: ${{ secrets.GIT_APP_PRIVATE_KEY }}
           owner: bizmatters
           repositories: ide-orchestrator,zerotouch-tenants
       
@@ -169,8 +169,8 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v1
         with:
-          app-id: ${{ vars.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          app-id: ${{ vars.GIT_APP_ID }}
+          private-key: ${{ secrets.GIT_APP_PRIVATE_KEY }}
           owner: bizmatters
           repositories: ide-orchestrator,zerotouch-tenants
       

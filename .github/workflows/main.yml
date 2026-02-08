@@ -1,0 +1,22 @@
+name: Main Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  id-token: write
+  contents: read
+  packages: write
+  pull-requests: write
+
+jobs:
+  pipeline:
+    uses: bizmatters/ci-workflow-templates/.github/workflows/service-pipeline.yml@main
+    secrets: inherit  # Inherits org-level AGE_PRIVATE_KEY
+    with:
+      service_name: ide-orchestrator
+      namespace: intelligence-orchestrator
+      test_names: '["auth", "auth-db", "auth-jwt", "workflow"]'

@@ -19,4 +19,3 @@ jobs:
     with:
       service_name: ide-orchestrator
       namespace: intelligence-orchestrator
-      test_names: '["auth", "auth-db", "auth-jwt", "workflow"]'

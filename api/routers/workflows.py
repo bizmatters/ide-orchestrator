@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from models.workflow import WorkflowCreate, WorkflowResponse
 from services.workflow_service import WorkflowService
-from api.dependencies import get_workflow_service
+from api.dependencies import get_workflow_service, get_current_user_id
 
 router = APIRouter(prefix="/api/workflows", tags=["workflows"])
 
@@ -13,14 +13,13 @@ router = APIRouter(prefix="/api/workflows", tags=["workflows"])
 async def create_workflow(
     workflow: WorkflowCreate,
     workflow_service: WorkflowService = Depends(get_workflow_service),
+    user_id: str = Depends(get_current_user_id),
 ):
     """
     Create a new workflow.
     
     Note: Authentication will be handled by SDK middleware in future implementation.
     """
-    # TODO: Replace with SDK-based authentication to get user_id
-    user_id = "pending-sdk-integration"
     result = workflow_service.create_workflow(
         name=workflow.name,
         user_id=user_id,
@@ -33,14 +32,13 @@ async def create_workflow(
 async def get_workflow(
     workflow_id: str,
     workflow_service: WorkflowService = Depends(get_workflow_service),
+    user_id: str = Depends(get_current_user_id),
 ):
     """
     Get a workflow by ID.
     
     Note: Authentication will be handled by SDK middleware in future implementation.
     """
-    # TODO: Replace with SDK-based authentication to get user_id
-    user_id = "pending-sdk-integration"
     result = workflow_service.get_workflow(workflow_id, user_id)
     if not result:
         # Return 404 for both non-existent workflows and access denied cases
@@ -53,14 +51,13 @@ async def get_workflow(
 async def get_versions(
     workflow_id: str,
     workflow_service: WorkflowService = Depends(get_workflow_service),
+    user_id: str = Depends(get_current_user_id),
 ):
     """
     Get all versions for a workflow.
     
     Note: Authentication will be handled by SDK middleware in future implementation.
     """
-    # TODO: Replace with SDK-based authentication to get user_id
-    user_id = "pending-sdk-integration"
     # Validate workflow access
     workflow = workflow_service.get_workflow(workflow_id, user_id)
     if not workflow:
@@ -75,14 +72,13 @@ async def get_version(
     workflow_id: str,
     version_number: int,
     workflow_service: WorkflowService = Depends(get_workflow_service),
+    user_id: str = Depends(get_current_user_id),
 ):
     """
     Get a specific version of a workflow.
     
     Note: Authentication will be handled by SDK middleware in future implementation.
     """
-    # TODO: Replace with SDK-based authentication to get user_id
-    user_id = "pending-sdk-integration"
     # Validate workflow access
     workflow = workflow_service.get_workflow(workflow_id, user_id)
     if not workflow:
@@ -99,14 +95,13 @@ async def get_version(
 async def publish_draft(
     workflow_id: str,
     workflow_service: WorkflowService = Depends(get_workflow_service),
+    user_id: str = Depends(get_current_user_id),
 ):
     """
     Publish draft as a new version.
     
     Note: Authentication will be handled by SDK middleware in future implementation.
     """
-    # TODO: Replace with SDK-based authentication to get user_id
-    user_id = "pending-sdk-integration"
     # Validate workflow access
     workflow = workflow_service.get_workflow(workflow_id, user_id)
     if not workflow:
@@ -127,14 +122,13 @@ async def publish_draft(
 async def discard_draft(
     workflow_id: str,
     workflow_service: WorkflowService = Depends(get_workflow_service),
+    user_id: str = Depends(get_current_user_id),
 ):
     """
     Discard the current draft.
     
     Note: Authentication will be handled by SDK middleware in future implementation.
     """
-    # TODO: Replace with SDK-based authentication to get user_id
-    user_id = "pending-sdk-integration"
     # Validate workflow access
     workflow = workflow_service.get_workflow(workflow_id, user_id)
     if not workflow:
@@ -152,14 +146,13 @@ async def deploy_version(
     workflow_id: str,
     deploy_data: dict,
     workflow_service: WorkflowService = Depends(get_workflow_service),
+    user_id: str = Depends(get_current_user_id),
 ):
     """
     Deploy a version to production.
     
     Note: Authentication will be handled by SDK middleware in future implementation.
     """
-    # TODO: Replace with SDK-based authentication to get user_id
-    user_id = "pending-sdk-integration"
     # Validate workflow access
     workflow = workflow_service.get_workflow(workflow_id, user_id)
     if not workflow:

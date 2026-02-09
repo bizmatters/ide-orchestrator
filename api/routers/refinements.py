@@ -5,7 +5,7 @@ from datetime import datetime
 
 from services.workflow_service import WorkflowService
 from services.orchestration_service import OrchestrationService
-from api.dependencies import get_workflow_service, get_orchestration_service
+from api.dependencies import get_workflow_service, get_orchestration_service, get_current_user_id
 
 router = APIRouter(prefix="/api", tags=["refinements"])
 
@@ -16,14 +16,13 @@ async def create_refinement(
     refinement_data: dict,
     workflow_service: WorkflowService = Depends(get_workflow_service),
     orchestration_service: OrchestrationService = Depends(get_orchestration_service),
+    user_id: str = Depends(get_current_user_id),
 ):
     """
     Create a refinement for a workflow.
     
     Note: Authentication will be handled by SDK middleware in future implementation.
     """
-    # TODO: Replace with SDK-based authentication to get user_id
-    user_id = "pending-sdk-integration"
     # Validate workflow access
     workflow = workflow_service.get_workflow(workflow_id, user_id)
     if not workflow:
@@ -75,14 +74,13 @@ async def create_refinement(
 async def approve_proposal(
     proposal_id: str,
     orchestration_service: OrchestrationService = Depends(get_orchestration_service),
+    user_id: str = Depends(get_current_user_id),
 ):
     """
     Approve a refinement proposal.
     
     Note: Authentication will be handled by SDK middleware in future implementation.
     """
-    # TODO: Replace with SDK-based authentication to get user_id
-    user_id = "pending-sdk-integration"
     try:
         orchestration_service.approve_proposal(proposal_id, user_id)
         
@@ -105,14 +103,13 @@ async def approve_proposal(
 async def reject_proposal(
     proposal_id: str,
     orchestration_service: OrchestrationService = Depends(get_orchestration_service),
+    user_id: str = Depends(get_current_user_id),
 ):
     """
     Reject a refinement proposal.
     
     Note: Authentication will be handled by SDK middleware in future implementation.
     """
-    # TODO: Replace with SDK-based authentication to get user_id
-    user_id = "pending-sdk-integration"
     try:
         orchestration_service.reject_proposal(proposal_id, user_id)
         
@@ -132,14 +129,13 @@ async def reject_proposal(
 async def get_proposal(
     proposal_id: str,
     orchestration_service: OrchestrationService = Depends(get_orchestration_service),
+    user_id: str = Depends(get_current_user_id),
 ):
     """
     Get proposal details and generated files.
     
     Note: Authentication will be handled by SDK middleware in future implementation.
     """
-    # TODO: Replace with SDK-based authentication to get user_id
-    user_id = "pending-sdk-integration"
     # Validate access
     if not orchestration_service.can_access_proposal(proposal_id, user_id):
         raise HTTPException(status_code=403, detail="Access denied to proposal")

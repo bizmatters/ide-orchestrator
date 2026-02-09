@@ -18,12 +18,13 @@ async def test_user_token() -> tuple[str, str]:
     Returns:
         Tuple of (user_id, jwt_token)
         
-    Note: JWT generation will be replaced with SDK MockAuth in future implementation.
+    Note: For testing, we pass user_id as the token directly.
+    JWT generation will be replaced with SDK MockAuth in future implementation.
     """
     # Create test user with proper UUID format
     user_id = str(uuid.uuid4())
-    # TODO: Replace with SDK MockAuth when integrated
-    token = "mock-jwt-token-pending-sdk-integration"
+    # For testing: pass user_id as token (will be extracted by get_current_user_id)
+    token = user_id
     
     return user_id, token
 

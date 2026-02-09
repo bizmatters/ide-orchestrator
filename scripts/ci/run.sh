@@ -11,9 +11,8 @@ set -euo pipefail
 # Environment Variables (Container runtime):
 #   - PORT: HTTP server port (default: 8080)
 #   - LOG_LEVEL: Logging verbosity (default: info)
-#   - POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
-#   - SPEC_ENGINE_URL: deepagents-runtime service URL
-#   - JWT_SECRET: JWT signing secret
+#   - DATABASE_URL: PostgreSQL connection string
+#   - DEEPAGENTS_RUNTIME_URL: deepagents-runtime service URL
 #
 # Assumptions:
 #   - Dependencies already installed (handled by Dockerfile)
@@ -30,31 +29,8 @@ echo "Starting IDE Orchestrator Service (CI/Production Mode)"
 echo "================================================================================"
 echo "  Port:                 ${PORT}"
 echo "  Log Level:            ${LOG_LEVEL}"
-echo "  Postgres Host:        ${POSTGRES_HOST:-not set}"
-echo "  Spec Engine URL:      ${SPEC_ENGINE_URL:-${SPEC_ENGINE_URL:-not set}}"
+echo "  Deepagents Runtime URL:      ${DEEPAGENTS_RUNTIME_URL:-not set}"
 echo "================================================================================"
-
-# 1. Construct DATABASE_URL from platform-provided granular variables
-# These are injected via envFrom: ide-orchestrator-db-conn
-if [[ -n "${POSTGRES_HOST:-}" ]]; then
-    export DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=disable"
-    echo "🔍 Constructed DATABASE_URL for ${POSTGRES_HOST}"
-    
-    # Wait up to 30 seconds for the port to open (additional safety check)
-    echo "🔍 Verifying database connectivity..."
-    TIMEOUT=30
-    while ! nc -z "$POSTGRES_HOST" "$POSTGRES_PORT" && [ $TIMEOUT -gt 0 ]; do
-        echo "Waiting for database port... ($TIMEOUT seconds remaining)"
-        sleep 1
-        let TIMEOUT-=1
-    done
-    
-    if [ $TIMEOUT -eq 0 ]; then
-        echo "⚠️ Database port check timed out, but continuing (app will retry)"
-    else
-        echo "✅ Database port is open"
-    fi
-fi
 
 # Validate required environment variables
 if [ -z "${DATABASE_URL:-}" ]; then
@@ -62,18 +38,13 @@ if [ -z "${DATABASE_URL:-}" ]; then
     exit 1
 fi
 
-if [ -z "${JWT_SECRET:-}" ]; then
-    echo "❌ ERROR: JWT_SECRET environment variable is required"
-    exit 1
-fi
-
 # 2. Map platform environment variables to application variables
 # Map spec engine URL from platform naming to application naming
-if [[ -n "${SPEC_ENGINE_URL:-}" ]]; then
-    export DEEPAGENTS_RUNTIME_URL="${SPEC_ENGINE_URL}"
+if [[ -n "${DEEPAGENTS_RUNTIME_URL:-}" ]]; then
+    export DEEPAGENTS_RUNTIME_URL="${DEEPAGENTS_RUNTIME_URL}"
     echo "🔍 Mapped DEEPAGENTS_RUNTIME_URL to ${DEEPAGENTS_RUNTIME_URL}"
-elif [[ -n "${SPEC_ENGINE_URL:-}" ]]; then
-    export DEEPAGENTS_RUNTIME_URL="${SPEC_ENGINE_URL}"
+elif [[ -n "${DEEPAGENTS_RUNTIME_URL:-}" ]]; then
+    export DEEPAGENTS_RUNTIME_URL="${DEEPAGENTS_RUNTIME_URL}"
     echo "🔍 Mapped DEEPAGENTS_RUNTIME_URL to ${DEEPAGENTS_RUNTIME_URL}"
 else
     echo "⚠️ No spec engine URL provided, using default"

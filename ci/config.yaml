@@ -13,6 +13,8 @@ build:
 test:
   timeout: 600    # Increased timeout for 54 integration tests
   parallel: true
+  test_patterns:
+    - "tests/integration/**/*.py"
   
 deployment:
   wait_timeout: 300
